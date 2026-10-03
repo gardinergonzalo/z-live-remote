@@ -75,6 +75,71 @@ function reportSelected() {
     }
 }
 
+
+function select(index) {
+    try {
+        var i = parseInt(index, 10);
+        var setApi = new LiveAPI("live_set");
+        var sceneCount = parseInt(setApi.getcount("scenes"), 10);
+
+        if (isNaN(i) || i < 0 || i >= sceneCount) {
+            outlet(0, ["select_error", "invalid_index", index]);
+            return;
+        }
+
+        var sceneApi = new LiveAPI("live_set scenes " + i);
+        var sceneName = cleanValue(sceneApi.get("name"));
+        var hasClips = sceneHasAnyClip(i);
+
+        if (!isValidScene(sceneName, hasClips)) {
+            outlet(0, ["select_error", "invalid_scene", i, sceneName]);
+            return;
+        }
+
+        var viewApi = new LiveAPI("live_set view");
+        viewApi.set("selected_scene", "id", sceneApi.id);
+
+        outlet(0, ["selected_by_zlr", i, sceneApi.id, sceneName]);
+    } catch (e) {
+        outlet(0, ["select_error", String(e)]);
+        post("Z Live Remote select error: " + e + "\n");
+    }
+}
+
+function fire() {
+    try {
+        var viewApi = new LiveAPI("live_set view");
+        var selectedRaw = viewApi.get("selected_scene");
+        var selectedId = extractId(selectedRaw);
+
+        if (!selectedId) {
+            outlet(0, ["fire_error", "no_selected_scene"]);
+            return;
+        }
+
+        var selectedApi = new LiveAPI("id " + selectedId);
+        var selectedName = cleanValue(selectedApi.get("name"));
+        var index = sceneIndexFromId(selectedId);
+
+        selectedApi.call("fire");
+        outlet(0, ["fired_scene", index, selectedId, selectedName]);
+    } catch (e) {
+        outlet(0, ["fire_error", String(e)]);
+        post("Z Live Remote fire error: " + e + "\n");
+    }
+}
+
+function stop() {
+    try {
+        var setApi = new LiveAPI("live_set");
+        setApi.call("stop_all_clips");
+        outlet(0, ["stop_all_clips"]);
+    } catch (e) {
+        outlet(0, ["stop_error", String(e)]);
+        post("Z Live Remote stop error: " + e + "\n");
+    }
+}
+
 function isValidScene(name, hasClips) {
     // A scene is valid if it has a meaningful custom name OR contains any clip.
     // This deliberately skips completely empty spacer rows.
