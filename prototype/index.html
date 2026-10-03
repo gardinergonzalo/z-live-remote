@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Z Live Remote — UI v0.1</title>
+<style>
+:root{--bg:#07090d;--panel:#11161e;--line:#252e3a;--text:#f5f7fb;--muted:#8995a4;--accent:#745cff;--ok:#2bd67b;--warn:#ffb84d;--danger:#ff5268}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif}
+body{min-height:100vh;display:grid;place-items:center;padding:20px}
+.phone{width:min(430px,100%);min-height:820px;border:1px solid #202732;border-radius:34px;background:linear-gradient(#10141b,#080b10);overflow:hidden;box-shadow:0 30px 80px #0008}
+header{display:flex;justify-content:space-between;align-items:center;padding:18px;border-bottom:1px solid #1c232c}
+.brand{font-weight:900;letter-spacing:.02em}.status{font-size:11px;font-weight:800;color:#9af0bf;background:#163224;border:1px solid #27583d;padding:8px 10px;border-radius:999px}
+main{padding:16px}.card{background:linear-gradient(180deg,#151b24,#0e131a);border:1px solid var(--line);border-radius:24px;padding:20px}
+.top{display:flex;justify-content:space-between;align-items:center}.state{font-size:12px;font-weight:900;letter-spacing:.14em;color:var(--warn)}.num{font-size:12px;color:#a6b0bd;background:#1a212b;padding:7px 9px;border-radius:10px}
+.title{margin:18px 0 8px;font-weight:950;line-height:.98;letter-spacing:-1.3px;font-size:clamp(24px,8.1vw,34px);text-wrap:balance;overflow-wrap:anywhere}
+.subtitle{color:var(--muted);font-size:12px;margin-bottom:18px}.label{font-size:10px;font-weight:900;letter-spacing:.14em;color:#6f7b8a;margin-bottom:8px}
+.sounds{display:flex;gap:8px;flex-wrap:wrap}.sound{padding:9px 11px;border:1px solid #26313f;background:#111823;border-radius:12px;font-size:13px;font-weight:700}
+.fire{width:100%;min-height:90px;border:0;border-radius:21px;margin-top:18px;background:linear-gradient(135deg,#755cff,#4f7eff);color:white;font-size:21px;font-weight:950}
+.next{margin-top:12px;border:1px solid #202936;background:#0e141c;border-radius:18px;padding:14px}.next b{display:block;margin-top:4px;font-size:16px}.next span{font-size:10px;color:#748091;letter-spacing:.12em;font-weight:900}
+.nav{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.nav button,.footer button{min-height:54px;border:1px solid #202936;border-radius:17px;background:#10161e;color:#e5eaf0;font-weight:850}
+.footer{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:10px}.footer .stop{color:#ff9aaa;border-color:#4a2530;background:#1b1015}
+@media(max-width:520px){body{padding:0}.phone{border:0;border-radius:0;min-height:100vh}.title{font-size:clamp(25px,8vw,33px)}}
+</style>
+</head>
+<body>
+<section class="phone">
+<header><div class="brand">Z LIVE REMOTE</div><div class="status">● CONECTADO</div></header>
+<main>
+<section class="card">
+<div class="top"><div class="state">● PREPARADA</div><div class="num">05</div></div>
+<h1 class="title">VAMPI +1</h1>
+<div class="subtitle">Lista para disparar</div>
+<div class="label">SONIDOS</div>
+<div class="sounds">
+<div class="sound">Rhodes Mark I</div>
+<div class="sound">Piano Concert Grand</div>
+<div class="sound">Brass Section</div>
+</div>
+<button class="fire" id="fire">▶ DISPARAR</button>
+</section>
+<section class="next"><span>SIGUIENTE</span><b>INGREDIENTES</b></section>
+<div class="nav"><button>← ANTERIOR</button><button>SIGUIENTE →</button></div>
+<div class="footer"><button>☷ SETLIST</button><button class="stop">■ STOP</button></div>
+</main>
+</section>
+<script>
+const fire=document.querySelector("#fire");
+fire.addEventListener("click",()=>{fire.textContent="● REPRODUCIENDO";document.querySelector(".state").textContent="● REPRODUCIENDO";document.querySelector(".state").style.color="var(--ok)"});
+</script>
+</body>
+</html>
