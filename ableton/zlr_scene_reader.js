@@ -118,10 +118,13 @@ function sceneHasAnyClip(sceneIndex) {
 function sceneIndexFromId(sceneId) {
     var setApi = new LiveAPI("live_set");
     var sceneCount = parseInt(setApi.getcount("scenes"), 10);
+    var targetId = parseInt(sceneId, 10);
 
     for (var i = 0; i < sceneCount; i++) {
         var sceneApi = new LiveAPI("live_set scenes " + i);
-        if (sceneApi.id === sceneId) {
+        var candidateId = parseInt(sceneApi.id, 10);
+
+        if (!isNaN(candidateId) && candidateId === targetId) {
             return i;
         }
     }
