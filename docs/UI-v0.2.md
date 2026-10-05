@@ -16,3 +16,5 @@ El prototipo interactivo está en `prototype/index.html`.
 
 - selector de tema representado sólo con iconos sol/luna;
 - radios reducidos aún más para acercar la interfaz al lenguaje visual de Ableton.
+
+- el selector claro/oscuro usa un único botón: muestra sol en oscuro para pasar a claro y luna en claro para volver a oscuro.
