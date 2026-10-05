@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "ios/**"
+      - "assets/icon-zlive.png"
       - ".github/workflows/ios-build.yml"
   pull_request:
     paths:
       - "ios/**"
+      - "assets/icon-zlive.png"
 
 jobs:
   build:
@@ -19,6 +21,12 @@ jobs:
 
       - name: Install XcodeGen
         run: brew install xcodegen
+
+      - name: Generate app icons
+        working-directory: ios
+        run: |
+          chmod +x scripts/generate-app-icons.sh
+          ./scripts/generate-app-icons.sh
 
       - name: Generate Xcode project
         working-directory: ios
