@@ -4,6 +4,7 @@ import CoreBluetooth
 final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
     var onCommandLine: ((String) -> Void)?
     var onLog: ((String) -> Void)?
+    var onConnectionChanged: ((Bool) -> Void)?
 
     private var manager: CBPeripheralManager!
     private var commandCharacteristic: CBMutableCharacteristic?
@@ -41,6 +42,7 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         switch peripheral.state {
         case .poweredOn:
             configureService()
+            onConnectionChanged?(false)
         case .poweredOff:
             log("Bluetooth is off.")
         case .unauthorized:
@@ -58,6 +60,7 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         didSubscribeTo characteristic: CBCharacteristic
     ) {
         subscribedCentral = central
+        onConnectionChanged?(true)
         log("iPhone/iPad subscribed. max notification = \(central.maximumUpdateValueLength) bytes")
         sendEncodable(BridgeHello())
     }
@@ -70,6 +73,7 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         if subscribedCentral?.identifier == central.identifier {
             subscribedCentral = nil
         }
+        onConnectionChanged?(false)
         log("iPhone/iPad disconnected from notifications.")
     }
 
