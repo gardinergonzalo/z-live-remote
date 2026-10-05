@@ -1,33 +1,20 @@
-# Test 03 — Disparar y preparar la siguiente Scene
+# Test 03 — descartado: fire_as_selected
 
-Este test valida el flujo real de escenario:
+El comando experimental `fire_next` no implementa el flujo deseado de Z Live Remote.
 
-1. Hay una Scene seleccionada y preparada.
-2. Se dispara esa Scene.
-3. La canción empieza a reproducirse.
-4. La siguiente Scene queda seleccionada/preparada.
-5. La siguiente Scene **no** se dispara automáticamente.
+La API de Live define `Scene.fire_as_selected()` como:
 
-## Comando
+1. disparar la Scene seleccionada;
+2. seleccionar inmediatamente la siguiente Scene.
 
-```
-fire_next
-```
+Z Live Remote necesita otro comportamiento:
 
-Internamente usa la función de Live API `Scene.fire_as_selected()`, diseñada para lanzar la Scene seleccionada y luego seleccionar la siguiente.
+1. disparar la Scene preparada;
+2. mantenerla como Scene activa mientras suena;
+3. detectar que terminó;
+4. recién entonces seleccionar la siguiente Scene válida;
+5. no disparar la siguiente.
 
-## Prueba
+Por eso `fire_next` queda conservado sólo como prueba histórica y **no debe usarse para el flujo del show**.
 
-Con `VAMPI +1` seleccionada:
-
-1. Crear un message box `fire_next`.
-2. Conectarlo al mismo inlet de `js zlr_scene_reader.js`.
-3. Pulsarlo una vez.
-
-Resultado esperado:
-
-- `VAMPI +1` empieza a sonar.
-- `INGREDIENTES` queda seleccionada.
-- `INGREDIENTES` no empieza a sonar.
-
-La consola debe mostrar `fired_and_prepared_next` y después un `selected_scene` correspondiente a la siguiente Scene.
+El comportamiento correcto se prueba en `TEST-04-auto-prepare.md` mediante `fire_watch`.
