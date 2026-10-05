@@ -74,10 +74,10 @@ struct AppPalette {
             line = Color(red: 0.239, green: 0.239, blue: 0.227)
             text = Color(red: 0.949, green: 0.949, blue: 0.937)
             muted = Color(red: 0.647, green: 0.647, blue: 0.624)
-            accent = Color(red: 1.0, green: 0.541, blue: 0.396)
-            ready = Color(red: 0.945, green: 0.667, blue: 0.235)
-            playing = Color(red: 0.341, green: 0.773, blue: 0.518)
-            danger = Color(red: 0.902, green: 0.424, blue: 0.424)
+            accent = Color(red: 1.0, green: 0.416, blue: 0.0)
+            ready = Color(red: 1.0, green: 0.584, blue: 0.0)
+            playing = Color(red: 0.196, green: 0.835, blue: 0.514)
+            danger = Color(red: 1.0, green: 0.271, blue: 0.227)
 
         case .light:
             background = Color(red: 0.949, green: 0.949, blue: 0.937)
@@ -86,10 +86,10 @@ struct AppPalette {
             line = Color(red: 0.831, green: 0.831, blue: 0.812)
             text = Color(red: 0.090, green: 0.090, blue: 0.090)
             muted = Color(red: 0.431, green: 0.431, blue: 0.412)
-            accent = Color(red: 1.0, green: 0.463, blue: 0.302)
-            ready = Color(red: 0.831, green: 0.541, blue: 0.094)
-            playing = Color(red: 0.165, green: 0.545, blue: 0.341)
-            danger = Color(red: 0.784, green: 0.294, blue: 0.294)
+            accent = Color(red: 0.957, green: 0.361, blue: 0.0)
+            ready = Color(red: 0.914, green: 0.498, blue: 0.0)
+            playing = Color(red: 0.063, green: 0.635, blue: 0.314)
+            danger = Color(red: 0.851, green: 0.176, blue: 0.125)
         }
     }
 }
