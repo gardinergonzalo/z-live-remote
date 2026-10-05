@@ -6,10 +6,16 @@ final class LiveRemoteViewModel: ObservableObject {
     @Published private(set) var currentIndex: Int
     @Published private(set) var playbackState: PlaybackState
     @Published private(set) var isConnected: Bool
+
+    @Published private(set) var timelineElapsed: Double = 0
+    @Published private(set) var timelineDuration: Double = 0
+    @Published private(set) var timelineProgress: Double = 0
+
     @Published var isSetlistPresented = false
 
     private var stagedScenes: [Int: Song] = [:]
     private var pendingSelectedSceneIndex: Int?
+    private var sceneDurations: [Int: Double] = [:]
 
     private lazy var bridgeClient: BLEBridgeClient = {
         let client = BLEBridgeClient()
@@ -44,6 +50,14 @@ final class LiveRemoteViewModel: ObservableObject {
         String(format: "%02d", currentIndex + 1)
     }
 
+    var timelineRemaining: Double {
+        max(0, timelineDuration - timelineElapsed)
+    }
+
+    var hasTimeline: Bool {
+        timelineDuration > 0
+    }
+
     func startRemoteConnection() {
         bridgeClient.start()
     }
@@ -63,6 +77,7 @@ final class LiveRemoteViewModel: ObservableObject {
             bridgeClient.send(.stop)
         } else if playbackState != .disconnected {
             playbackState = .ready
+            resetTimelineProgress()
         }
     }
 
@@ -90,6 +105,7 @@ final class LiveRemoteViewModel: ObservableObject {
         }
 
         playbackState = .ready
+        syncTimelineForCurrentScene()
     }
 
     func setConnected(_ connected: Bool) {
@@ -101,6 +117,7 @@ final class LiveRemoteViewModel: ObservableObject {
             }
         } else {
             playbackState = .disconnected
+            resetTimelineProgress()
         }
     }
 
@@ -112,6 +129,7 @@ final class LiveRemoteViewModel: ObservableObject {
         songs = parsed
         currentIndex = min(currentIndex, max(parsed.count - 1, 0))
         playbackState = parsed.isEmpty ? .disconnected : .ready
+        syncTimelineForCurrentScene()
     }
 
     private func selectPosition(_ position: Int) {
@@ -124,6 +142,7 @@ final class LiveRemoteViewModel: ObservableObject {
         } else {
             currentIndex = position
             playbackState = .ready
+            syncTimelineForCurrentScene()
         }
     }
 
@@ -136,6 +155,7 @@ final class LiveRemoteViewModel: ObservableObject {
         currentIndex = position
         playbackState = .ready
         pendingSelectedSceneIndex = nil
+        syncTimelineForCurrentScene()
     }
 
     private func finishSceneScan() {
@@ -150,7 +170,40 @@ final class LiveRemoteViewModel: ObservableObject {
             selectSceneIndexFromAbleton(pendingSelectedSceneIndex)
         } else if currentIndex >= songs.count {
             currentIndex = max(songs.count - 1, 0)
+            syncTimelineForCurrentScene()
         }
+    }
+
+    private func syncTimelineForCurrentScene() {
+        timelineElapsed = 0
+        timelineProgress = 0
+
+        guard let sceneIndex = currentSong?.id else {
+            timelineDuration = 0
+            return
+        }
+
+        timelineDuration = sceneDurations[sceneIndex] ?? 0
+    }
+
+    private func resetTimelineProgress() {
+        timelineElapsed = 0
+        timelineProgress = 0
+    }
+
+    private func updateTimeline(
+        sceneIndex: Int,
+        elapsed: Double,
+        duration: Double,
+        progress: Double
+    ) {
+        sceneDurations[sceneIndex] = max(0, duration)
+
+        guard currentSong?.id == sceneIndex else { return }
+
+        timelineDuration = max(0, duration)
+        timelineElapsed = min(max(0, elapsed), timelineDuration)
+        timelineProgress = min(max(0, progress), 1)
     }
 }
 
@@ -201,8 +254,21 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 guard let sceneIndex = event.index else { return }
                 self.selectSceneIndexFromAbleton(sceneIndex)
 
+            case "scene_duration":
+                guard
+                    let sceneIndex = event.index,
+                    let duration = event.duration
+                else { return }
+
+                self.sceneDurations[sceneIndex] = max(0, duration)
+
+                if self.currentSong?.id == sceneIndex {
+                    self.timelineDuration = max(0, duration)
+                    self.timelineElapsed = 0
+                    self.timelineProgress = 0
+                }
+
             case "fired_watching":
-                // Wait for scene_started before showing real playback feedback.
                 break
 
             case "scene_started":
@@ -211,8 +277,25 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 }
                 self.playbackState = .playing
 
+            case "timeline":
+                guard
+                    let sceneIndex = event.index,
+                    let elapsed = event.elapsed,
+                    let duration = event.duration,
+                    let progress = event.progress
+                else { return }
+
+                self.updateTimeline(
+                    sceneIndex: sceneIndex,
+                    elapsed: elapsed,
+                    duration: duration,
+                    progress: progress
+                )
+
+            case "timeline_reset":
+                self.resetTimelineProgress()
+
             case "scene_finished":
-                // prepared_next will provide the authoritative next Scene.
                 break
 
             case "prepared_next":
@@ -222,6 +305,7 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
 
             case "stop_all_clips":
                 self.playbackState = .ready
+                self.resetTimelineProgress()
 
             case "max_error":
                 self.playbackState = .ready
