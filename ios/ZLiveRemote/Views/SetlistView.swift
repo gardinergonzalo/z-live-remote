@@ -3,6 +3,7 @@ import SwiftUI
 struct SetlistView: View {
     @ObservedObject var viewModel: LiveRemoteViewModel
     @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
 
     private let cornerRadius: CGFloat = 4
 
@@ -38,6 +39,27 @@ struct SetlistView: View {
             .navigationTitle("SETLIST")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(palette.background, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(width: 32, height: 32)
+                            .background(palette.surface)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                    .stroke(palette.line, lineWidth: 1)
+                            }
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Cerrar setlist")
+                }
+            }
         }
         .foregroundStyle(palette.text)
     }
