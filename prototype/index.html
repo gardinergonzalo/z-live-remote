@@ -80,7 +80,7 @@ body{display:grid;place-items:center;padding:18px;transition:background .18s eas
   width:30px;height:28px;padding:0;font-size:15px;font-weight:700;cursor:pointer;
   display:grid;place-items:center;
 }
-.theme-toggle button.active{background:var(--surface-2);color:var(--text)}
+.theme-toggle button{background:var(--surface);color:var(--text)}
 main{padding:14px}
 .section{
   border:1px solid var(--line);
@@ -240,8 +240,7 @@ main{padding:14px}
     <div class="brand">Z LIVE REMOTE</div>
     <div class="connection"><i></i><span>CONECTADO</span></div>
     <div class="theme-toggle" aria-label="Tema">
-      <button id="lightBtn" aria-label="Tema claro" title="Tema claro">☀</button>
-      <button id="darkBtn" class="active" aria-label="Tema oscuro" title="Tema oscuro">☾</button>
+      <button id="themeBtn" aria-label="Cambiar a tema claro" title="Cambiar a tema claro">☀</button>
     </div>
   </header>
 
@@ -348,14 +347,19 @@ $("#stop").onpointerup=$("#stop").onpointerleave=()=>clearTimeout(window.__stopT
 $("#setlistBtn").onclick=()=>$("#drawer").classList.add("open");
 $("#close").onclick=()=>$("#drawer").classList.remove("open");
 $("#drawer").onclick=e=>{if(e.target===$("#drawer"))$("#drawer").classList.remove("open")};
-$("#lightBtn").onclick=()=>{
-  document.documentElement.dataset.theme="light";
-  $("#lightBtn").classList.add("active");$("#darkBtn").classList.remove("active");
+const themeBtn = $("#themeBtn");
+function syncThemeButton(){
+  const isDark = document.documentElement.dataset.theme === "dark";
+  themeBtn.textContent = isDark ? "☀" : "☾";
+  themeBtn.setAttribute("aria-label", isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro");
+  themeBtn.setAttribute("title", isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro");
+}
+themeBtn.onclick=()=>{
+  const isDark = document.documentElement.dataset.theme === "dark";
+  document.documentElement.dataset.theme = isDark ? "light" : "dark";
+  syncThemeButton();
 };
-$("#darkBtn").onclick=()=>{
-  document.documentElement.dataset.theme="dark";
-  $("#darkBtn").classList.add("active");$("#lightBtn").classList.remove("active");
-};
+syncThemeButton();
 render();
 </script>
 </body>
