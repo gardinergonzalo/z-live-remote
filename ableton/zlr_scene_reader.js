@@ -129,6 +129,36 @@ function fire() {
     }
 }
 
+
+function fire_next() {
+    try {
+        var viewApi = new LiveAPI("live_set view");
+        var selectedRaw = viewApi.get("selected_scene");
+        var selectedId = extractId(selectedRaw);
+
+        if (!selectedId) {
+            outlet(0, ["fire_next_error", "no_selected_scene"]);
+            return;
+        }
+
+        var selectedApi = new LiveAPI("id " + selectedId);
+        var selectedName = cleanValue(selectedApi.get("name"));
+        var index = sceneIndexFromId(selectedId);
+
+        // Live's fire_as_selected launches the currently selected Scene
+        // and selects the following Scene without launching it.
+        selectedApi.call("fire_as_selected");
+
+        outlet(0, ["fired_and_prepared_next", index, selectedId, selectedName]);
+
+        // Report the newly prepared Scene after Live has advanced selection.
+        reportSelected();
+    } catch (e) {
+        outlet(0, ["fire_next_error", String(e)]);
+        post("Z Live Remote fire_next error: " + e + "\n");
+    }
+}
+
 function stop() {
     try {
         var setApi = new LiveAPI("live_set");
