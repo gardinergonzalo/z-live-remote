@@ -33,4 +33,7 @@ struct BridgeEvent: Decodable {
     let liveId: Int?
     let name: String?
     let message: String?
+    let elapsed: Double?
+    let duration: Double?
+    let progress: Double?
 }
