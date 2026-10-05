@@ -173,7 +173,13 @@ final class LiveRemoteViewModel: ObservableObject {
         }
 
         currentIndex = position
-        playbackState = .ready
+
+        // A scan/reconnect can report the selected Scene while it is already
+        // playing. Do not downgrade that recovered state back to PREPARADA.
+        if playbackState != .playing {
+            playbackState = .ready
+        }
+
         pendingSelectedSceneIndex = nil
         syncTimelineForCurrentScene()
     }
