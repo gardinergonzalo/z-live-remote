@@ -78,6 +78,29 @@ maxApi.addHandler("scene_finished", (...args) => {
     send({ type: "scene_finished", args: cleanArgs(args) });
 });
 
+maxApi.addHandler("scene_duration", (index, duration) => {
+    send({
+        type: "scene_duration",
+        index: Number(index),
+        duration: Number(duration)
+    });
+});
+
+maxApi.addHandler("timeline", (index, elapsed, duration, progress) => {
+    send({
+        type: "timeline",
+        index: Number(index),
+        elapsed: Number(elapsed),
+        duration: Number(duration),
+        progress: Number(progress)
+    });
+});
+
+maxApi.addHandler("timeline_reset", () => {
+    send({ type: "timeline_reset" });
+});
+
+
 maxApi.addHandler("prepared_next", (index, liveId, ...nameParts) => {
     send({
         type: "prepared_next",
