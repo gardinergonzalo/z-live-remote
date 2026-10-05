@@ -24,7 +24,10 @@ struct ShowView: View {
                         if let song = viewModel.currentSong {
                             if usesTwoColumnLayout(geometry.size) {
                                 HStack(alignment: .top, spacing: 10) {
-                                    currentSongPanel(song)
+                                    currentSongPanel(
+                                        song,
+                                        compactLandscape: isCompactLandscape(geometry.size)
+                                    )
                                         .frame(maxWidth: .infinity)
 
                                     VStack(spacing: 10) {
@@ -45,7 +48,10 @@ struct ShowView: View {
                                     )
                                 }
                             } else {
-                                currentSongPanel(song)
+                                currentSongPanel(
+                                    song,
+                                    compactLandscape: isCompactLandscape(geometry.size)
+                                )
                                 nextSongPanel
                                 navigationControls
                                 setlistButton
@@ -113,7 +119,10 @@ struct ShowView: View {
         .padding(.bottom, 4)
     }
 
-    private func currentSongPanel(_ song: Song) -> some View {
+    private func currentSongPanel(
+        _ song: Song,
+        compactLandscape: Bool
+    ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(viewModel.playbackState.rawValue)
@@ -135,55 +144,27 @@ struct ShowView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.58)
                 .allowsTightening(true)
-                .padding(.top, 18)
+                .padding(.top, compactLandscape ? 10 : 18)
 
             Text(
                 viewModel.playbackState == .playing
                     ? "La canción está sonando"
                     : "Lista para disparar"
             )
-            .font(.system(size: 13, weight: .regular))
+            .font(.system(size: compactLandscape ? 11 : 13, weight: .regular))
             .foregroundStyle(palette.muted)
-            .padding(.top, 7)
+            .padding(.top, compactLandscape ? 4 : 7)
 
             if !song.sounds.isEmpty {
                 Rectangle()
                     .fill(palette.line)
                     .frame(height: 1)
-                    .padding(.vertical, 18)
+                    .padding(.vertical, compactLandscape ? 12 : 18)
 
-                Text("REFERENCIAS")
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(1.35)
-                    .foregroundStyle(palette.muted)
-                    .padding(.bottom, 6)
-
-                VStack(spacing: 0) {
-                    ForEach(Array(song.sounds.enumerated()), id: \.offset) { index, sound in
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(String(format: "%02d", index + 1))
-                                .font(.system(size: 12, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(palette.muted)
-                                .frame(width: 28, alignment: .leading)
-
-                            Text(sound)
-                                .font(.system(size: 23, weight: .semibold))
-                                .tracking(-0.25)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.75)
-
-                            Spacer(minLength: 0)
-                        }
-                        .frame(minHeight: 48)
-                        .overlay(alignment: .top) {
-                            if index > 0 {
-                                Rectangle()
-                                    .fill(palette.line)
-                                    .frame(height: 1)
-                            }
-                        }
-                    }
+                if compactLandscape {
+                    compactReferences(song.sounds)
+                } else {
+                    portraitReferences(song.sounds)
                 }
             }
 
@@ -192,10 +173,10 @@ struct ShowView: View {
                     .padding(.top, 18)
             }
 
-            playbackControls
-                .padding(.top, 18)
+            playbackControls(compactLandscape: compactLandscape)
+                .padding(.top, compactLandscape ? 12 : 18)
         }
-        .padding(18)
+        .padding(compactLandscape ? 14 : 18)
         .background(panelBackground)
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -249,41 +230,18 @@ struct ShowView: View {
     }
 
     @ViewBuilder
-    private var playbackControls: some View {
+    private func playbackControls(compactLandscape: Bool) -> some View {
         if viewModel.playbackState == .playing {
-            VStack(spacing: 8) {
-                Text("REPRODUCIENDO")
-                    .font(.system(size: 17, weight: .black))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 62)
-                    .background(palette.playing)
-                    .foregroundStyle(Color(red: 0.03, green: 0.13, blue: 0.07))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(palette.playing, lineWidth: 1)
-                    }
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    )
-
-                Text("MANTENER STOP")
-                    .font(.system(size: 15, weight: .black))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 58)
-                    .background(palette.danger)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(palette.danger, lineWidth: 1)
-                    }
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    )
-                    .contentShape(Rectangle())
-                    .onLongPressGesture(minimumDuration: 0.8) {
-                        viewModel.stop()
-                    }
-                    .accessibilityLabel("Mantener para detener la canción")
+            if compactLandscape {
+                HStack(spacing: 8) {
+                    playingIndicator(minHeight: 52)
+                    stopControl(minHeight: 52)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    playingIndicator(minHeight: 62)
+                    stopControl(minHeight: 58)
+                }
             }
         } else {
             Button {
@@ -292,7 +250,7 @@ struct ShowView: View {
                 Text("DISPARAR")
                     .font(.system(size: 18, weight: .black))
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 70)
+                    .frame(minHeight: compactLandscape ? 56 : 70)
                     .background(palette.accent)
                     .foregroundStyle(Color(red: 0.08, green: 0.08, blue: 0.08))
                     .overlay {
@@ -306,6 +264,133 @@ struct ShowView: View {
             .buttonStyle(.plain)
         }
     }
+
+    private func playingIndicator(minHeight: CGFloat) -> some View {
+        Text("REPRODUCIENDO")
+            .font(.system(size: 16, weight: .black))
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: minHeight)
+            .background(palette.playing)
+            .foregroundStyle(Color(red: 0.03, green: 0.13, blue: 0.07))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(palette.playing, lineWidth: 1)
+            }
+            .clipShape(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+    }
+
+    private func stopControl(minHeight: CGFloat) -> some View {
+        Text("MANTENER STOP")
+            .font(.system(size: 14, weight: .black))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: minHeight)
+            .background(palette.danger)
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(palette.danger, lineWidth: 1)
+            }
+            .clipShape(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+            .contentShape(Rectangle())
+            .onLongPressGesture(minimumDuration: 0.8) {
+                viewModel.stop()
+            }
+            .accessibilityLabel("Mantener para detener la canción")
+    }
+
+    private func portraitReferences(_ sounds: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("REFERENCIAS")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(1.35)
+                .foregroundStyle(palette.muted)
+                .padding(.bottom, 6)
+
+            ForEach(Array(sounds.enumerated()), id: \.offset) { index, sound in
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(String(format: "%02d", index + 1))
+                        .font(.system(size: 12, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(palette.muted)
+                        .frame(width: 28, alignment: .leading)
+
+                    Text(sound)
+                        .font(.system(size: 23, weight: .semibold))
+                        .tracking(-0.25)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.75)
+
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 48)
+                .overlay(alignment: .top) {
+                    if index > 0 {
+                        Rectangle()
+                            .fill(palette.line)
+                            .frame(height: 1)
+                    }
+                }
+            }
+        }
+    }
+
+    private func compactReferences(_ sounds: [String]) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 18) {
+                Text("REFERENCIAS")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(palette.muted)
+
+                ForEach(Array(sounds.enumerated()), id: \.offset) { index, sound in
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text(String(format: "%02d", index + 1))
+                            .font(.system(size: 11, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(palette.muted)
+
+                        Text(sound)
+                            .font(.system(size: 20, weight: .semibold))
+                            .tracking(-0.2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("REFERENCIAS")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(palette.muted)
+
+                HStack(spacing: 16) {
+                    ForEach(Array(sounds.enumerated()), id: \.offset) { index, sound in
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Text(String(format: "%02d", index + 1))
+                                .font(.system(size: 11, weight: .medium))
+                                .monospacedDigit()
+                                .foregroundStyle(palette.muted)
+
+                            Text(sound)
+                                .font(.system(size: 19, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
 
     private var nextSongPanel: some View {
         HStack(spacing: 12) {
@@ -515,6 +600,10 @@ struct ShowView: View {
 
     private func usesTwoColumnLayout(_ size: CGSize) -> Bool {
         size.width >= 680
+    }
+
+    private func isCompactLandscape(_ size: CGSize) -> Bool {
+        size.width > size.height && size.height <= 500
     }
 
     private func showsPersistentSetlist(_ size: CGSize) -> Bool {
