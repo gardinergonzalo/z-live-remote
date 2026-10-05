@@ -3,6 +3,11 @@ autowatch = 1;
 inlets = 1;
 outlets = 2;
 
+var playbackMonitor = null;
+var monitoredSceneIndex = -1;
+var monitorHasStarted = false;
+var monitorStoppedTicks = 0;
+
 /*
  Z Live Remote - Scene Reader Test
  Outlet 0: human-readable/status messages
@@ -130,6 +135,161 @@ function fire() {
 }
 
 
+
+function fire_watch() {
+    try {
+        stopPlaybackMonitor();
+
+        var viewApi = new LiveAPI("live_set view");
+        var selectedRaw = viewApi.get("selected_scene");
+        var selectedId = extractId(selectedRaw);
+
+        if (!selectedId) {
+            outlet(0, ["fire_watch_error", "no_selected_scene"]);
+            return;
+        }
+
+        var selectedApi = new LiveAPI("id " + selectedId);
+        var selectedName = cleanValue(selectedApi.get("name"));
+        var index = sceneIndexFromId(selectedId);
+
+        if (index < 0) {
+            outlet(0, ["fire_watch_error", "scene_index_not_found"]);
+            return;
+        }
+
+        monitoredSceneIndex = index;
+        monitorHasStarted = false;
+        monitorStoppedTicks = 0;
+
+        // Fire ONLY the prepared scene. Do not advance selection here.
+        selectedApi.call("fire");
+        outlet(0, ["fired_watching", index, selectedId, selectedName]);
+
+        playbackMonitor = new Task(pollMonitoredScene, this);
+        playbackMonitor.interval = 100;
+        playbackMonitor.repeat();
+    } catch (e) {
+        outlet(0, ["fire_watch_error", String(e)]);
+        post("Z Live Remote fire_watch error: " + e + "\n");
+    }
+}
+
+function pollMonitoredScene() {
+    try {
+        if (monitoredSceneIndex < 0) {
+            stopPlaybackMonitor();
+            return;
+        }
+
+        var active = sceneIsPlayingOrTriggered(monitoredSceneIndex);
+
+        if (active) {
+            if (!monitorHasStarted) {
+                monitorHasStarted = true;
+                outlet(0, ["scene_started", monitoredSceneIndex]);
+            }
+            monitorStoppedTicks = 0;
+            return;
+        }
+
+        // Ignore the quantization/pre-launch gap until the scene has actually started.
+        if (!monitorHasStarted) {
+            return;
+        }
+
+        // Small debounce so a transient API state does not advance the show.
+        monitorStoppedTicks += 1;
+        if (monitorStoppedTicks < 3) {
+            return;
+        }
+
+        var finishedIndex = monitoredSceneIndex;
+        stopPlaybackMonitor();
+
+        var nextIndex = findNextValidSceneIndex(finishedIndex + 1);
+
+        if (nextIndex < 0) {
+            outlet(0, ["scene_finished", finishedIndex, "end_of_setlist"]);
+            return;
+        }
+
+        selectSceneIndex(nextIndex);
+        var nextApi = new LiveAPI("live_set scenes " + nextIndex);
+        var nextName = cleanValue(nextApi.get("name"));
+
+        outlet(0, ["scene_finished", finishedIndex]);
+        outlet(0, ["prepared_next", nextIndex, nextApi.id, nextName]);
+    } catch (e) {
+        outlet(0, ["monitor_error", String(e)]);
+        post("Z Live Remote monitor error: " + e + "\n");
+        stopPlaybackMonitor();
+    }
+}
+
+function stopPlaybackMonitor() {
+    if (playbackMonitor) {
+        try {
+            playbackMonitor.cancel();
+        } catch (ignore) {}
+    }
+
+    playbackMonitor = null;
+    monitoredSceneIndex = -1;
+    monitorHasStarted = false;
+    monitorStoppedTicks = 0;
+}
+
+function sceneIsPlayingOrTriggered(sceneIndex) {
+    var setApi = new LiveAPI("live_set");
+    var trackCount = parseInt(setApi.getcount("tracks"), 10);
+
+    for (var t = 0; t < trackCount; t++) {
+        var trackApi = new LiveAPI("live_set tracks " + t);
+        var playingIndex = parseInt(cleanValue(trackApi.get("playing_slot_index")), 10);
+
+        if (!isNaN(playingIndex) && playingIndex === sceneIndex) {
+            return true;
+        }
+
+        var slotCount = parseInt(trackApi.getcount("clip_slots"), 10);
+        if (sceneIndex < slotCount) {
+            var slotApi = new LiveAPI(
+                "live_set tracks " + t + " clip_slots " + sceneIndex
+            );
+            var triggered = parseInt(cleanValue(slotApi.get("is_triggered")), 10);
+            if (triggered === 1) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function findNextValidSceneIndex(startIndex) {
+    var setApi = new LiveAPI("live_set");
+    var sceneCount = parseInt(setApi.getcount("scenes"), 10);
+
+    for (var i = startIndex; i < sceneCount; i++) {
+        var sceneApi = new LiveAPI("live_set scenes " + i);
+        var sceneName = cleanValue(sceneApi.get("name"));
+        var hasClips = sceneHasAnyClip(i);
+
+        if (isValidScene(sceneName, hasClips)) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+function selectSceneIndex(index) {
+    var sceneApi = new LiveAPI("live_set scenes " + index);
+    var viewApi = new LiveAPI("live_set view");
+    viewApi.set("selected_scene", "id", sceneApi.id);
+}
+
 function fire_next() {
     try {
         var viewApi = new LiveAPI("live_set view");
@@ -161,6 +321,9 @@ function fire_next() {
 
 function stop() {
     try {
+        // Manual STOP must not be interpreted as a natural song ending.
+        stopPlaybackMonitor();
+
         var setApi = new LiveAPI("live_set");
         setApi.call("stop_all_clips");
         outlet(0, ["stop_all_clips"]);
