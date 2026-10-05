@@ -8,9 +8,20 @@ var monitoredSceneIndex = -1;
 var monitorHasStarted = false;
 var monitorStoppedTicks = 0;
 var monitorTimelineTicks = 0;
+var monitorTrackApis = [];
+var monitorTimelineApi = null;
+var monitorTimelineDuration = 0;
+var monitorTimelineLoopStart = 0;
+var monitorTimelineUsesSeconds = false;
+var monitorTempo = 120;
+var sceneDurationCache = {};
+
+var MONITOR_INTERVAL_MS = 250;
+var TIMELINE_EVERY_TICKS = 2;
+var STOPPED_DEBOUNCE_TICKS = 2;
 
 /*
- Z Live Remote v0.4.0 - Scene Reader
+ Z Live Remote v0.4.1 - Scene Reader performance hotfix
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
@@ -85,12 +96,15 @@ function reportSelected() {
 
 
 function resumeWatchIfPlaying(index) {
-    if (index < 0 || !sceneIsPlayingOrTriggered(index)) {
+    if (index < 0) {
         return;
     }
 
-    outlet(0, ["scene_started", index]);
-    reportTimeline(index);
+    var trackApis = buildTrackApis();
+
+    if (!sceneIsPlayingWithApis(index, trackApis)) {
+        return;
+    }
 
     if (playbackMonitor && monitoredSceneIndex === index) {
         return;
@@ -102,9 +116,13 @@ function resumeWatchIfPlaying(index) {
     monitorHasStarted = true;
     monitorStoppedTicks = 0;
     monitorTimelineTicks = 0;
+    prepareMonitoringState(index, trackApis);
+
+    outlet(0, ["scene_started", index]);
+    reportCachedTimeline(index);
 
     playbackMonitor = new Task(pollMonitoredScene, this);
-    playbackMonitor.interval = 100;
+    playbackMonitor.interval = MONITOR_INTERVAL_MS;
     playbackMonitor.repeat();
 }
 
@@ -190,6 +208,7 @@ function fire_watch() {
         monitorHasStarted = false;
         monitorStoppedTicks = 0;
         monitorTimelineTicks = 0;
+        prepareMonitoringState(index, buildTrackApis());
         reportSceneDuration(index);
 
         // Fire ONLY the prepared scene. Do not advance selection here.
@@ -197,7 +216,7 @@ function fire_watch() {
         outlet(0, ["fired_watching", index, selectedId, selectedName]);
 
         playbackMonitor = new Task(pollMonitoredScene, this);
-        playbackMonitor.interval = 100;
+        playbackMonitor.interval = MONITOR_INTERVAL_MS;
         playbackMonitor.repeat();
     } catch (e) {
         outlet(0, ["fire_watch_error", String(e)]);
@@ -212,32 +231,35 @@ function pollMonitoredScene() {
             return;
         }
 
-        var active = sceneIsPlayingOrTriggered(monitoredSceneIndex);
+        var active = sceneIsPlayingWithApis(
+            monitoredSceneIndex,
+            monitorTrackApis
+        );
 
         if (active) {
             if (!monitorHasStarted) {
                 monitorHasStarted = true;
                 outlet(0, ["scene_started", monitoredSceneIndex]);
             }
+
             monitorStoppedTicks = 0;
             monitorTimelineTicks += 1;
 
-            if (monitorTimelineTicks >= 3) {
+            if (monitorTimelineTicks >= TIMELINE_EVERY_TICKS) {
                 monitorTimelineTicks = 0;
-                reportTimeline(monitoredSceneIndex);
+                reportCachedTimeline(monitoredSceneIndex);
             }
 
             return;
         }
 
-        // Ignore the quantization/pre-launch gap until the scene has actually started.
+        // Ignore the launch-quantization gap until the Scene actually starts.
         if (!monitorHasStarted) {
             return;
         }
 
-        // Small debounce so a transient API state does not advance the show.
         monitorStoppedTicks += 1;
-        if (monitorStoppedTicks < 3) {
+        if (monitorStoppedTicks < STOPPED_DEBOUNCE_TICKS) {
             return;
         }
 
@@ -277,33 +299,142 @@ function stopPlaybackMonitor() {
     monitorHasStarted = false;
     monitorStoppedTicks = 0;
     monitorTimelineTicks = 0;
+    monitorTrackApis = [];
+    monitorTimelineApi = null;
+    monitorTimelineDuration = 0;
+    monitorTimelineLoopStart = 0;
+    monitorTimelineUsesSeconds = false;
 }
 
-function sceneIsPlayingOrTriggered(sceneIndex) {
+function buildTrackApis() {
     var setApi = new LiveAPI("live_set");
     var trackCount = parseInt(setApi.getcount("tracks"), 10);
+    var result = [];
 
     for (var t = 0; t < trackCount; t++) {
-        var trackApi = new LiveAPI("live_set tracks " + t);
-        var playingIndex = parseInt(cleanValue(trackApi.get("playing_slot_index")), 10);
+        result.push(new LiveAPI("live_set tracks " + t));
+    }
+
+    return result;
+}
+
+function sceneIsPlayingWithApis(sceneIndex, trackApis) {
+    for (var t = 0; t < trackApis.length; t++) {
+        var playingIndex = parseInt(
+            cleanValue(trackApis[t].get("playing_slot_index")),
+            10
+        );
 
         if (!isNaN(playingIndex) && playingIndex === sceneIndex) {
             return true;
         }
-
-        var slotCount = parseInt(trackApi.getcount("clip_slots"), 10);
-        if (sceneIndex < slotCount) {
-            var slotApi = new LiveAPI(
-                "live_set tracks " + t + " clip_slots " + sceneIndex
-            );
-            var triggered = parseInt(cleanValue(slotApi.get("is_triggered")), 10);
-            if (triggered === 1) {
-                return true;
-            }
-        }
     }
 
     return false;
+}
+
+function prepareMonitoringState(sceneIndex, trackApis) {
+    monitorTrackApis = trackApis || buildTrackApis();
+    monitorTimelineApi = null;
+    monitorTimelineDuration = 0;
+    monitorTimelineLoopStart = 0;
+    monitorTimelineUsesSeconds = false;
+
+    var setApi = new LiveAPI("live_set");
+    monitorTempo = parseFloat(cleanValue(setApi.get("tempo")));
+
+    if (isNaN(monitorTempo) || monitorTempo <= 0) {
+        monitorTempo = 120;
+    }
+
+    for (var t = 0; t < monitorTrackApis.length; t++) {
+        var trackApi = monitorTrackApis[t];
+        var slotCount = parseInt(trackApi.getcount("clip_slots"), 10);
+
+        if (sceneIndex >= slotCount) {
+            continue;
+        }
+
+        var slotPath = "live_set tracks " + t + " clip_slots " + sceneIndex;
+        var slotApi = new LiveAPI(slotPath);
+        var hasClip = parseInt(cleanValue(slotApi.get("has_clip")), 10);
+
+        if (hasClip !== 1) {
+            continue;
+        }
+
+        var clipApi = new LiveAPI(slotPath + " clip");
+        var duration = clipDurationSeconds(clipApi, monitorTempo);
+
+        if (duration > monitorTimelineDuration) {
+            monitorTimelineDuration = duration;
+            monitorTimelineApi = clipApi;
+
+            var isAudio = parseInt(
+                cleanValue(clipApi.get("is_audio_clip")),
+                10
+            );
+            var warping = isAudio === 1
+                ? parseInt(cleanValue(clipApi.get("warping")), 10)
+                : 1;
+            var loopStart = parseFloat(
+                cleanValue(clipApi.get("loop_start"))
+            );
+
+            monitorTimelineLoopStart = isNaN(loopStart) ? 0 : loopStart;
+            monitorTimelineUsesSeconds = isAudio === 1 && warping === 0;
+        }
+    }
+
+    if (monitorTimelineDuration > 0) {
+        sceneDurationCache[sceneIndex] = monitorTimelineDuration;
+    }
+}
+
+function reportCachedTimeline(sceneIndex) {
+    try {
+        if (
+            sceneIndex !== monitoredSceneIndex ||
+            !monitorTimelineApi ||
+            monitorTimelineDuration <= 0
+        ) {
+            return;
+        }
+
+        var playingPosition = parseFloat(
+            cleanValue(monitorTimelineApi.get("playing_position"))
+        );
+
+        if (isNaN(playingPosition)) {
+            return;
+        }
+
+        var units = Math.max(
+            0,
+            playingPosition - monitorTimelineLoopStart
+        );
+
+        var elapsed = monitorTimelineUsesSeconds
+            ? units
+            : units * 60.0 / monitorTempo;
+
+        elapsed = Math.max(
+            0,
+            Math.min(elapsed, monitorTimelineDuration)
+        );
+
+        outlet(0, [
+            "timeline",
+            sceneIndex,
+            elapsed,
+            monitorTimelineDuration,
+            monitorTimelineDuration > 0
+                ? elapsed / monitorTimelineDuration
+                : 0
+        ]);
+    } catch (e) {
+        outlet(0, ["timeline_error", "cached_progress", sceneIndex, String(e)]);
+    }
 }
 
 function findNextValidSceneIndex(startIndex) {
@@ -404,17 +535,24 @@ function reportTimeline(sceneIndex) {
 }
 
 function sceneDurationSeconds(sceneIndex) {
+    if (
+        sceneDurationCache.hasOwnProperty(sceneIndex) &&
+        sceneDurationCache[sceneIndex] > 0
+    ) {
+        return sceneDurationCache[sceneIndex];
+    }
+
     var setApi = new LiveAPI("live_set");
     var tempo = parseFloat(cleanValue(setApi.get("tempo")));
     if (isNaN(tempo) || tempo <= 0) {
         tempo = 120;
     }
 
-    var trackCount = parseInt(setApi.getcount("tracks"), 10);
+    var trackApis = buildTrackApis();
     var maxDuration = 0;
 
-    for (var t = 0; t < trackCount; t++) {
-        var trackApi = new LiveAPI("live_set tracks " + t);
+    for (var t = 0; t < trackApis.length; t++) {
+        var trackApi = trackApis[t];
         var slotCount = parseInt(trackApi.getcount("clip_slots"), 10);
 
         if (sceneIndex >= slotCount) {
@@ -435,6 +573,10 @@ function sceneDurationSeconds(sceneIndex) {
         if (duration > maxDuration) {
             maxDuration = duration;
         }
+    }
+
+    if (maxDuration > 0) {
+        sceneDurationCache[sceneIndex] = maxDuration;
     }
 
     return maxDuration;
