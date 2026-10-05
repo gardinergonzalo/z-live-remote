@@ -53,3 +53,16 @@ Los dos outlets del lector pueden seguir conectados a los `print` usados para di
 3. Confirmar en Max Console: `Z Live Remote transport listening on UDP 45455`.
 4. El Bridge debe imprimir `[Max → iOS] {"type":"max_transport_ready"}`.
 5. Al conectarse el iPhone, el Bridge podrá reenviar `scan/select/fire/stop`.
+
+
+## Resultado parcial
+
+**Max transport: APROBADO**
+
+La consola real de Max mostró:
+
+`Z Live Remote transport listening on UDP 45455`
+
+Esto confirma que `node.script zlr_transport.js` inició correctamente y está escuchando las órdenes locales del Bridge.
+
+El aviso `Trying to set the process_id for a child process, but it already has one` no impidió que el listener quedara activo; se mantiene bajo observación durante las siguientes pruebas.
