@@ -1,4 +1,4 @@
-// Z Live Remote v0.4.0 - Node for Max transport
+// Z Live Remote v0.4.1 - Node for Max transport
 const maxApi = require("max-api");
 const dgram = require("dgram");
 
