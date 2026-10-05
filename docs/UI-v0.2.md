@@ -13,3 +13,6 @@ Dirección visual aprobada para explorar:
 - títulos largos: hasta dos líneas con tamaño adaptable antes de recurrir a cualquier scroll.
 
 El prototipo interactivo está en `prototype/index.html`.
+
+- selector de tema representado sólo con iconos sol/luna;
+- radios reducidos aún más para acercar la interfaz al lenguaje visual de Ableton.
