@@ -4,12 +4,12 @@ on:
   push:
     paths:
       - "mac/bridge/**"
-      - "assets/icon-zlive.png"
+      - "scripts/generate-zlive-icon.py"
       - ".github/workflows/macos-bridge-build.yml"
   pull_request:
     paths:
       - "mac/bridge/**"
-      - "assets/icon-zlive.png"
+      - "scripts/generate-zlive-icon.py"
 
 jobs:
   build-intel:
@@ -27,6 +27,9 @@ jobs:
 
       - name: Package menu bar app
         run: |
+          python3 -m pip install --quiet pillow
+          python3 scripts/generate-zlive-icon.py dist/ZLiveIcon-1024.png
+
           APP="dist/Z Live Remote Bridge.app"
           ICONSET="dist/AppIcon.iconset"
 
@@ -36,16 +39,16 @@ jobs:
           cp mac/bridge/Info.plist "$APP/Contents/Info.plist"
           chmod +x "$APP/Contents/MacOS/ZLiveRemoteBridge"
 
-          sips -z 16 16 assets/icon-zlive.png --out "$ICONSET/icon_16x16.png" >/dev/null
-          sips -z 32 32 assets/icon-zlive.png --out "$ICONSET/icon_16x16@2x.png" >/dev/null
-          sips -z 32 32 assets/icon-zlive.png --out "$ICONSET/icon_32x32.png" >/dev/null
-          sips -z 64 64 assets/icon-zlive.png --out "$ICONSET/icon_32x32@2x.png" >/dev/null
-          sips -z 128 128 assets/icon-zlive.png --out "$ICONSET/icon_128x128.png" >/dev/null
-          sips -z 256 256 assets/icon-zlive.png --out "$ICONSET/icon_128x128@2x.png" >/dev/null
-          sips -z 256 256 assets/icon-zlive.png --out "$ICONSET/icon_256x256.png" >/dev/null
-          sips -z 512 512 assets/icon-zlive.png --out "$ICONSET/icon_256x256@2x.png" >/dev/null
-          sips -z 512 512 assets/icon-zlive.png --out "$ICONSET/icon_512x512.png" >/dev/null
-          cp assets/icon-zlive.png "$ICONSET/icon_512x512@2x.png"
+          sips -z 16 16 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_16x16.png" >/dev/null
+          sips -z 32 32 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_16x16@2x.png" >/dev/null
+          sips -z 32 32 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_32x32.png" >/dev/null
+          sips -z 64 64 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_32x32@2x.png" >/dev/null
+          sips -z 128 128 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_128x128.png" >/dev/null
+          sips -z 256 256 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_128x128@2x.png" >/dev/null
+          sips -z 256 256 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_256x256.png" >/dev/null
+          sips -z 512 512 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_256x256@2x.png" >/dev/null
+          sips -z 512 512 dist/ZLiveIcon-1024.png --out "$ICONSET/icon_512x512.png" >/dev/null
+          cp dist/ZLiveIcon-1024.png "$ICONSET/icon_512x512@2x.png"
 
           iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 
