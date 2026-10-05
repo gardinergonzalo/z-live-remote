@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ShowView: View {
     @ObservedObject var viewModel: LiveRemoteViewModel
@@ -34,6 +35,12 @@ struct ShowView: View {
             .scrollIndicators(.hidden)
         }
         .foregroundStyle(palette.text)
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
     }
 
     private var appHeader: some View {
@@ -338,11 +345,11 @@ struct ShowView: View {
     }
 
     private var connectionColor: Color {
-        viewModel.playbackState == .disconnected ? palette.danger : palette.playing
+        viewModel.isConnected ? palette.playing : palette.danger
     }
 
     private var connectionLabel: String {
-        viewModel.playbackState == .disconnected ? "SIN CONEXIÓN" : "CONECTADO"
+        viewModel.isConnected ? "CONECTADO" : "SIN CONEXIÓN"
     }
 
     private var fireBackground: Color {
