@@ -66,3 +66,21 @@ La consola real de Max mostró:
 Esto confirma que `node.script zlr_transport.js` inició correctamente y está escuchando las órdenes locales del Bridge.
 
 El aviso `Trying to set the process_id for a child process, but it already has one` no impidió que el listener quedara activo; se mantiene bajo observación durante las siguientes pruebas.
+
+
+## Resultado Bridge ↔ Max
+
+**Bridge ↔ Max: APROBADO**
+
+Prueba real en macOS 15.7.7:
+
+- `node.script zlr_transport.js` escucha en UDP 45455;
+- Z Live Remote Bridge se inicia como app de barra de menú;
+- el Bridge muestra `Ableton: Conectado`;
+- Bluetooth queda en `Esperando iPhone/iPad`.
+
+Con esto queda validado el tramo:
+
+`Ableton ↔ Max for Live ↔ Z Live Remote Bridge`
+
+El siguiente test es conectar la app iOS por BLE y recibir la setlist real.
