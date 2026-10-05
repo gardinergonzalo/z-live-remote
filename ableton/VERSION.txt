@@ -1,5 +1,5 @@
 Z Live Remote Max Component
-Version: 0.4.0 Beta
+Version: 0.4.1 Hotfix
 Protocol: 2
 Files:
 - zlr_scene_reader.js
