@@ -23,16 +23,19 @@ jobs:
       - name: Build release bridge
         run: swift build -c release --package-path mac/bridge
 
-      - name: Package Intel bridge
+      - name: Package menu bar app
         run: |
-          mkdir -p dist
-          cp mac/bridge/.build/release/ZLiveRemoteBridge dist/ZLiveRemoteBridge
-          chmod +x dist/ZLiveRemoteBridge
-          tar -czf ZLiveRemoteBridge-macOS-Intel.tar.gz -C dist ZLiveRemoteBridge
+          APP="dist/Z Live Remote Bridge.app"
+          mkdir -p "$APP/Contents/MacOS"
+          cp mac/bridge/.build/release/ZLiveRemoteBridge "$APP/Contents/MacOS/ZLiveRemoteBridge"
+          cp mac/bridge/Info.plist "$APP/Contents/Info.plist"
+          chmod +x "$APP/Contents/MacOS/ZLiveRemoteBridge"
+          codesign --force --deep --sign - "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "ZLiveRemoteBridge-macOS-Intel.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ZLiveRemoteBridge-macOS-Intel
-          path: ZLiveRemoteBridge-macOS-Intel.tar.gz
+          path: ZLiveRemoteBridge-macOS-Intel.zip
           if-no-files-found: error
