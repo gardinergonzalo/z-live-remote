@@ -2,15 +2,18 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-SRC="$ROOT/assets/icon-zlive.png"
 OUT="$ROOT/ios/ZLiveRemote/Assets.xcassets/AppIcon.appiconset"
+MASTER="$ROOT/ios/.generated/ZLiveIcon-1024.png"
+
+python3 -m pip install --quiet pillow
+python3 "$ROOT/scripts/generate-zlive-icon.py" "$MASTER"
 
 mkdir -p "$OUT"
 
 make_icon() {
   local px="$1"
   local name="$2"
-  sips -z "$px" "$px" "$SRC" --out "$OUT/$name" >/dev/null
+  sips -z "$px" "$px" "$MASTER" --out "$OUT/$name" >/dev/null
 }
 
 make_icon 40  "AppIcon-20@2x.png"
@@ -31,6 +34,6 @@ make_icon 80  "AppIcon-40@2x-ipad.png"
 make_icon 76  "AppIcon-76@1x-ipad.png"
 make_icon 152 "AppIcon-76@2x-ipad.png"
 make_icon 167 "AppIcon-83.5@2x-ipad.png"
-make_icon 1024 "AppIcon-1024.png"
+cp "$MASTER" "$OUT/AppIcon-1024.png"
 
 echo "Generated Z Live Remote iOS/iPadOS app icons."
