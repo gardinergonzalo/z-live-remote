@@ -7,7 +7,7 @@ enum ZLRProtocol {
     static let eventUUID = CBUUID(string: "A7F44C0E-5B2E-4E8F-9A71-21E8C4D1F003")
 
     static let deviceName = "Z Live Remote"
-    static let protocolVersion = 1
+    static let protocolVersion = 2
 
     static let bridgeReceivePort: UInt16 = 45454
     static let maxReceivePort: UInt16 = 45455
@@ -17,4 +17,10 @@ struct BridgeHello: Encodable {
     let type = "hello"
     let version = ZLRProtocol.protocolVersion
     let device = ZLRProtocol.deviceName
+}
+
+struct BridgeStatus: Encodable {
+    let type = "bridge_status"
+    let version = ZLRProtocol.protocolVersion
+    let maxConnected: Bool
 }

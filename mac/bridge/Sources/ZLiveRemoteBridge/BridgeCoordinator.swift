@@ -9,6 +9,7 @@ final class BridgeCoordinator {
 
     private var heartbeatTimer: Timer?
     private var lastMaxReply: Date?
+    private var isMaxConnected = false
 
     func start() {
         onBLEStatus?("Esperando iPhone/iPad")
@@ -18,7 +19,15 @@ final class BridgeCoordinator {
         maxTransport.onLog = { print("[MAX] \($0)") }
 
         ble.onConnectionChanged = { [weak self] connected in
-            self?.onBLEStatus?(connected ? "Conectado" : "Esperando iPhone/iPad")
+            guard let self else { return }
+
+            self.onBLEStatus?(
+                connected ? "Conectado" : "Esperando iPhone/iPad"
+            )
+
+            if connected {
+                self.sendBridgeStatus()
+            }
         }
 
         ble.onCommandLine = { [weak self] line in
@@ -31,7 +40,7 @@ final class BridgeCoordinator {
 
             print("[Max → iOS] \(line)")
             self.lastMaxReply = Date()
-            self.onMaxStatus?("Conectado")
+            self.setMaxConnected(true)
             self.ble.sendJSONLine(line)
         }
 
@@ -39,9 +48,28 @@ final class BridgeCoordinator {
         ble.start()
         startHeartbeat()
 
-        print("Z Live Remote Bridge started.")
+        print("Z Live Remote Bridge v0.4.0 started.")
         print("macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         print("Waiting for Bluetooth and Max for Live...")
+    }
+
+    private func setMaxConnected(_ connected: Bool) {
+        let changed = connected != isMaxConnected
+        isMaxConnected = connected
+
+        onMaxStatus?(
+            connected ? "Conectado" : "Esperando Max for Live"
+        )
+
+        if changed {
+            sendBridgeStatus()
+        }
+    }
+
+    private func sendBridgeStatus() {
+        ble.sendEncodable(
+            BridgeStatus(maxConnected: isMaxConnected)
+        )
     }
 
     private func startHeartbeat() {
@@ -52,20 +80,19 @@ final class BridgeCoordinator {
 
             self.maxTransport.sendCommandLine(#"{"type":"ping"}"#)
 
-            if
-                let lastMaxReply = self.lastMaxReply,
-                Date().timeIntervalSince(lastMaxReply) <= 5.0
-            {
-                self.onMaxStatus?("Conectado")
+            let connected: Bool
+            if let lastMaxReply = self.lastMaxReply {
+                connected = Date().timeIntervalSince(lastMaxReply) <= 5.0
             } else {
-                self.onMaxStatus?("Esperando Max for Live")
+                connected = false
             }
+
+            self.setMaxConnected(connected)
         }
 
         RunLoop.main.add(timer, forMode: .common)
         heartbeatTimer = timer
 
-        // First probe immediately so opening the Bridge after Max already started works.
         maxTransport.sendCommandLine(#"{"type":"ping"}"#)
     }
 }

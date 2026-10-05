@@ -17,6 +17,10 @@ final class LiveRemoteViewModel: ObservableObject {
     private var pendingSelectedSceneIndex: Int?
     private var sceneDurations: [Int: Double] = [:]
 
+    private var bridgeLinkReady = false
+    private var maxTransportReady = false
+    private var didRequestScanForCurrentMaxSession = false
+
     private lazy var bridgeClient: BLEBridgeClient = {
         let client = BLEBridgeClient()
         client.delegate = self
@@ -63,36 +67,34 @@ final class LiveRemoteViewModel: ObservableObject {
     }
 
     func fire() {
-        guard currentSong != nil else { return }
-
-        if isConnected {
-            bridgeClient.send(.fire)
-        } else {
-            playbackState = .playing
-        }
+        guard isConnected, currentSong != nil else { return }
+        bridgeClient.send(.fire)
     }
 
     func stop() {
-        if isConnected {
-            bridgeClient.send(.stop)
-        } else if playbackState != .disconnected {
-            playbackState = .ready
-            resetTimelineProgress()
-        }
+        guard isConnected else { return }
+        bridgeClient.send(.stop)
     }
 
     func selectPrevious() {
-        guard !songs.isEmpty, currentIndex > 0 else { return }
+        guard isConnected, !songs.isEmpty, currentIndex > 0 else { return }
         selectPosition(currentIndex - 1)
     }
 
     func selectNext() {
-        guard !songs.isEmpty, currentIndex + 1 < songs.count else { return }
+        guard
+            isConnected,
+            !songs.isEmpty,
+            currentIndex + 1 < songs.count
+        else { return }
+
         selectPosition(currentIndex + 1)
     }
 
     func select(song: Song) {
+        guard isConnected else { return }
         guard let index = songs.firstIndex(of: song) else { return }
+
         isSetlistPresented = false
         selectPosition(index)
     }
@@ -109,10 +111,12 @@ final class LiveRemoteViewModel: ObservableObject {
     }
 
     func setConnected(_ connected: Bool) {
+        guard isConnected != connected else { return }
+
         isConnected = connected
 
         if connected {
-            if playbackState == .disconnected {
+            if playbackState == .disconnected, currentSong != nil {
                 playbackState = .ready
             }
         } else {
@@ -132,18 +136,34 @@ final class LiveRemoteViewModel: ObservableObject {
         syncTimelineForCurrentScene()
     }
 
+    private func refreshEndToEndConnection() {
+        setConnected(bridgeLinkReady && maxTransportReady)
+    }
+
+    private func markMaxAvailable(
+        _ available: Bool,
+        client: BLEBridgeClient
+    ) {
+        let wasReady = maxTransportReady
+        maxTransportReady = available
+
+        if !available {
+            didRequestScanForCurrentMaxSession = false
+        }
+
+        refreshEndToEndConnection()
+
+        if available && (!wasReady || !didRequestScanForCurrentMaxSession) {
+            didRequestScanForCurrentMaxSession = true
+            client.send(.scan)
+        }
+    }
+
     private func selectPosition(_ position: Int) {
-        guard songs.indices.contains(position) else { return }
+        guard isConnected, songs.indices.contains(position) else { return }
 
         let song = songs[position]
-
-        if isConnected {
-            bridgeClient.send(.select(sceneIndex: song.id))
-        } else {
-            currentIndex = position
-            playbackState = .ready
-            syncTimelineForCurrentScene()
-        }
+        bridgeClient.send(.select(sceneIndex: song.id))
     }
 
     private func selectSceneIndexFromAbleton(_ sceneIndex: Int) {
@@ -171,6 +191,10 @@ final class LiveRemoteViewModel: ObservableObject {
         } else if currentIndex >= songs.count {
             currentIndex = max(songs.count - 1, 0)
             syncTimelineForCurrentScene()
+        }
+
+        if isConnected, !songs.isEmpty, playbackState == .disconnected {
+            playbackState = .ready
         }
     }
 
@@ -210,14 +234,20 @@ final class LiveRemoteViewModel: ObservableObject {
 extension LiveRemoteViewModel: BLEBridgeClientDelegate {
     nonisolated func bridgeClientDidConnect(_ client: BLEBridgeClient) {
         Task { @MainActor in
-            self.setConnected(true)
-            client.send(.scan)
+            self.bridgeLinkReady = true
+            self.maxTransportReady = false
+            self.didRequestScanForCurrentMaxSession = false
+            self.refreshEndToEndConnection()
+            client.send(.ping)
         }
     }
 
     nonisolated func bridgeClientDidDisconnect(_ client: BLEBridgeClient) {
         Task { @MainActor in
-            self.setConnected(false)
+            self.bridgeLinkReady = false
+            self.maxTransportReady = false
+            self.didRequestScanForCurrentMaxSession = false
+            self.refreshEndToEndConnection()
         }
     }
 
@@ -228,11 +258,18 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
         Task { @MainActor in
             switch event.type {
             case "hello":
-                self.setConnected(true)
-                client.send(.scan)
+                self.bridgeLinkReady = true
+                self.refreshEndToEndConnection()
+                client.send(.ping)
 
-            case "max_transport_ready":
-                client.send(.scan)
+            case "bridge_status":
+                self.markMaxAvailable(
+                    event.maxConnected ?? false,
+                    client: client
+                )
+
+            case "pong", "max_transport_ready":
+                self.markMaxAvailable(true, client: client)
 
             case "scan_begin":
                 self.stagedScenes.removeAll(keepingCapacity: true)
@@ -308,7 +345,9 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 self.resetTimelineProgress()
 
             case "max_error":
-                self.playbackState = .ready
+                if let message = event.message {
+                    print("[Z Live Remote Max] \(message)")
+                }
 
             default:
                 break

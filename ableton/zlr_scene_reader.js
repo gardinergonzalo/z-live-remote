@@ -10,7 +10,7 @@ var monitorStoppedTicks = 0;
 var monitorTimelineTicks = 0;
 
 /*
- Z Live Remote - Scene Reader Test
+ Z Live Remote v0.4.0 - Scene Reader
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
@@ -76,12 +76,37 @@ function reportSelected() {
 
         outlet(0, ["selected_scene", index, selectedId, selectedName]);
         reportSceneDuration(index);
+        resumeWatchIfPlaying(index);
     } catch (e) {
         outlet(0, ["error_selected", String(e)]);
         post("Z Live Remote selected scene error: " + e + "\n");
     }
 }
 
+
+function resumeWatchIfPlaying(index) {
+    if (index < 0 || !sceneIsPlayingOrTriggered(index)) {
+        return;
+    }
+
+    outlet(0, ["scene_started", index]);
+    reportTimeline(index);
+
+    if (playbackMonitor && monitoredSceneIndex === index) {
+        return;
+    }
+
+    stopPlaybackMonitor();
+
+    monitoredSceneIndex = index;
+    monitorHasStarted = true;
+    monitorStoppedTicks = 0;
+    monitorTimelineTicks = 0;
+
+    playbackMonitor = new Task(pollMonitoredScene, this);
+    playbackMonitor.interval = 100;
+    playbackMonitor.repeat();
+}
 
 function select(index) {
     try {

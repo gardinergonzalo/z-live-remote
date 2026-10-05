@@ -25,7 +25,9 @@ final class BLEBridgeClient: NSObject {
     private var commandCharacteristic: CBCharacteristic?
     private var eventCharacteristic: CBCharacteristic?
     private var incomingBuffer = Data()
+    private var reconnectWorkItem: DispatchWorkItem?
     private var hasStarted = false
+    private var isReady = false
 
     func start() {
         guard !hasStarted else { return }
@@ -39,10 +41,11 @@ final class BLEBridgeClient: NSObject {
 
     func send(_ command: BridgeCommand) {
         guard
+            isReady,
             let peripheral,
             let commandCharacteristic
         else {
-            log("Command ignored: bridge is not connected.")
+            log("Command ignored: bridge is not ready.")
             return
         }
 
@@ -79,9 +82,19 @@ final class BLEBridgeClient: NSObject {
     }
 
     private func scan() {
-        guard central.state == .poweredOn else { return }
+        guard
+            hasStarted,
+            central.state == .poweredOn,
+            peripheral == nil
+        else { return }
 
-        central.stopScan()
+        reconnectWorkItem?.cancel()
+        reconnectWorkItem = nil
+
+        if central.isScanning {
+            central.stopScan()
+        }
+
         log("Searching for Z Live Remote Bridge...")
 
         central.scanForPeripherals(
@@ -93,9 +106,33 @@ final class BLEBridgeClient: NSObject {
     private func reconnectSoon() {
         guard hasStarted else { return }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            self?.scan()
+        reconnectWorkItem?.cancel()
+
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.reconnectWorkItem = nil
+            self.scan()
         }
+
+        reconnectWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: item)
+    }
+
+    private func resetConnectionState() {
+        isReady = false
+        peripheral = nil
+        commandCharacteristic = nil
+        eventCharacteristic = nil
+        incomingBuffer.removeAll(keepingCapacity: true)
+    }
+
+    private func failCurrentConnection(
+        _ peripheral: CBPeripheral,
+        message: String
+    ) {
+        log(message)
+        isReady = false
+        central.cancelPeripheralConnection(peripheral)
     }
 
     private func drainIncomingLines() {
@@ -126,15 +163,26 @@ extension BLEBridgeClient: CBCentralManagerDelegate {
         switch central.state {
         case .poweredOn:
             scan()
+
         case .poweredOff:
+            reconnectWorkItem?.cancel()
+            central.stopScan()
+            resetConnectionState()
             log("Bluetooth is off.")
             delegate?.bridgeClientDidDisconnect(self)
+
         case .unauthorized:
+            reconnectWorkItem?.cancel()
+            resetConnectionState()
             log("Bluetooth permission denied.")
             delegate?.bridgeClientDidDisconnect(self)
+
         case .unsupported:
+            reconnectWorkItem?.cancel()
+            resetConnectionState()
             log("Bluetooth LE is not supported on this device.")
             delegate?.bridgeClientDidDisconnect(self)
+
         default:
             break
         }
@@ -146,7 +194,12 @@ extension BLEBridgeClient: CBCentralManagerDelegate {
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
+        guard self.peripheral == nil else { return }
+
         central.stopScan()
+        reconnectWorkItem?.cancel()
+        reconnectWorkItem = nil
+
         self.peripheral = peripheral
         peripheral.delegate = self
 
@@ -168,7 +221,8 @@ extension BLEBridgeClient: CBCentralManagerDelegate {
         error: Error?
     ) {
         log("Connection failed: \(error?.localizedDescription ?? "unknown error")")
-        self.peripheral = nil
+        resetConnectionState()
+        delegate?.bridgeClientDidDisconnect(self)
         reconnectSoon()
     }
 
@@ -177,11 +231,13 @@ extension BLEBridgeClient: CBCentralManagerDelegate {
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
     ) {
-        log("Bridge disconnected.")
-        self.peripheral = nil
-        commandCharacteristic = nil
-        eventCharacteristic = nil
-        incomingBuffer.removeAll(keepingCapacity: true)
+        if let error {
+            log("Bridge disconnected: \(error.localizedDescription)")
+        } else {
+            log("Bridge disconnected.")
+        }
+
+        resetConnectionState()
         delegate?.bridgeClientDidDisconnect(self)
         reconnectSoon()
     }
@@ -193,14 +249,20 @@ extension BLEBridgeClient: CBPeripheralDelegate {
         didDiscoverServices error: Error?
     ) {
         if let error {
-            log("Service discovery failed: \(error.localizedDescription)")
+            failCurrentConnection(
+                peripheral,
+                message: "Service discovery failed: \(error.localizedDescription)"
+            )
             return
         }
 
         guard let service = peripheral.services?.first(where: {
             $0.uuid == Self.serviceUUID
         }) else {
-            log("Z Live Remote BLE service was not found.")
+            failCurrentConnection(
+                peripheral,
+                message: "Z Live Remote BLE service was not found."
+            )
             return
         }
 
@@ -216,7 +278,10 @@ extension BLEBridgeClient: CBPeripheralDelegate {
         error: Error?
     ) {
         if let error {
-            log("Characteristic discovery failed: \(error.localizedDescription)")
+            failCurrentConnection(
+                peripheral,
+                message: "Characteristic discovery failed: \(error.localizedDescription)"
+            )
             return
         }
 
@@ -225,14 +290,21 @@ extension BLEBridgeClient: CBPeripheralDelegate {
                 commandCharacteristic = characteristic
             } else if characteristic.uuid == Self.eventUUID {
                 eventCharacteristic = characteristic
-                peripheral.setNotifyValue(true, for: characteristic)
             }
         }
 
-        guard commandCharacteristic != nil, eventCharacteristic != nil else {
-            log("Bridge characteristics are incomplete.")
+        guard
+            commandCharacteristic != nil,
+            let eventCharacteristic
+        else {
+            failCurrentConnection(
+                peripheral,
+                message: "Bridge characteristics are incomplete."
+            )
             return
         }
+
+        peripheral.setNotifyValue(true, for: eventCharacteristic)
     }
 
     func peripheral(
@@ -243,14 +315,24 @@ extension BLEBridgeClient: CBPeripheralDelegate {
         guard characteristic.uuid == Self.eventUUID else { return }
 
         if let error {
-            log("Could not enable event notifications: \(error.localizedDescription)")
+            failCurrentConnection(
+                peripheral,
+                message: "Could not enable event notifications: \(error.localizedDescription)"
+            )
             return
         }
 
-        if characteristic.isNotifying {
-            log("Z Live Remote Bridge ready.")
-            delegate?.bridgeClientDidConnect(self)
+        guard characteristic.isNotifying else {
+            failCurrentConnection(
+                peripheral,
+                message: "Bridge notifications are not active."
+            )
+            return
         }
+
+        isReady = true
+        log("Z Live Remote Bridge ready.")
+        delegate?.bridgeClientDidConnect(self)
     }
 
     func peripheral(
@@ -268,5 +350,15 @@ extension BLEBridgeClient: CBPeripheralDelegate {
         guard let value = characteristic.value else { return }
         incomingBuffer.append(value)
         drainIncomingLines()
+    }
+
+    func peripheral(
+        _ peripheral: CBPeripheral,
+        didWriteValueFor characteristic: CBCharacteristic,
+        error: Error?
+    ) {
+        if let error {
+            log("BLE command write failed: \(error.localizedDescription)")
+        }
     }
 }

@@ -269,7 +269,22 @@ struct ShowView: View {
 
     @ViewBuilder
     private func playbackControls(compactLandscape: Bool) -> some View {
-        if viewModel.playbackState == .playing {
+        if !viewModel.isConnected {
+            Text("SIN CONEXIÓN")
+                .font(.system(size: 14, weight: .black))
+                .tracking(0.8)
+                .foregroundStyle(palette.muted)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: compactLandscape ? 52 : 58)
+                .background(palette.surfaceSecondary)
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(palette.line, lineWidth: 1)
+                }
+                .clipShape(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                )
+        } else if viewModel.playbackState == .playing {
             if compactLandscape {
                 HStack(spacing: 8) {
                     playingIndicator(minHeight: 52)
@@ -451,6 +466,8 @@ struct ShowView: View {
                 viewModel.selectNext()
             }
         }
+        .disabled(!viewModel.isConnected)
+        .opacity(viewModel.isConnected ? 1 : 0.5)
     }
 
     private var setlistButton: some View {

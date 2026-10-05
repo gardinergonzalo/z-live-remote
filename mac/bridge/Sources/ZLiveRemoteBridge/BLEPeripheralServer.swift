@@ -43,12 +43,22 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         case .poweredOn:
             configureService()
             onConnectionChanged?(false)
+
         case .poweredOff:
+            clearConnectionState()
             log("Bluetooth is off.")
+            onConnectionChanged?(false)
+
         case .unauthorized:
+            clearConnectionState()
             log("Bluetooth permission denied.")
+            onConnectionChanged?(false)
+
         case .unsupported:
+            clearConnectionState()
             log("Bluetooth LE is not supported on this Mac.")
+            onConnectionChanged?(false)
+
         default:
             log("Bluetooth state: \(peripheral.state.rawValue)")
         }
@@ -59,9 +69,17 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         central: CBCentral,
         didSubscribeTo characteristic: CBCharacteristic
     ) {
+        incomingBuffer.removeAll(keepingCapacity: true)
+        outgoingChunks.removeAll(keepingCapacity: true)
+
         subscribedCentral = central
         onConnectionChanged?(true)
-        log("iPhone/iPad subscribed. max notification = \(central.maximumUpdateValueLength) bytes")
+
+        log(
+            "iPhone/iPad subscribed. max notification = " +
+            "\(central.maximumUpdateValueLength) bytes"
+        )
+
         sendEncodable(BridgeHello())
     }
 
@@ -71,8 +89,9 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         didUnsubscribeFrom characteristic: CBCharacteristic
     ) {
         if subscribedCentral?.identifier == central.identifier {
-            subscribedCentral = nil
+            clearConnectionState()
         }
+
         onConnectionChanged?(false)
         log("iPhone/iPad disconnected from notifications.")
     }
@@ -101,7 +120,12 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
     }
 
     private func configureService() {
+        manager.stopAdvertising()
         manager.removeAllServices()
+
+        commandCharacteristic = nil
+        eventCharacteristic = nil
+        clearConnectionState()
 
         let command = CBMutableCharacteristic(
             type: ZLRProtocol.commandUUID,
@@ -117,7 +141,10 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
             permissions: [.readable]
         )
 
-        let service = CBMutableService(type: ZLRProtocol.serviceUUID, primary: true)
+        let service = CBMutableService(
+            type: ZLRProtocol.serviceUUID,
+            primary: true
+        )
         service.characteristics = [command, event]
 
         commandCharacteristic = command
@@ -132,8 +159,18 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         log("Advertising BLE service as \(ZLRProtocol.deviceName).")
     }
 
+    private func clearConnectionState() {
+        subscribedCentral = nil
+        incomingBuffer.removeAll(keepingCapacity: true)
+        outgoingChunks.removeAll(keepingCapacity: true)
+    }
+
     private func enqueueForNotification(_ data: Data) {
-        let maximum = max(20, subscribedCentral?.maximumUpdateValueLength ?? 180)
+        guard let subscribedCentral else {
+            return
+        }
+
+        let maximum = max(20, subscribedCentral.maximumUpdateValueLength)
         var cursor = 0
 
         while cursor < data.count {
@@ -146,14 +183,17 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
     }
 
     private func flushOutgoing() {
-        guard let eventCharacteristic else { return }
+        guard
+            let eventCharacteristic,
+            let subscribedCentral
+        else { return }
 
         while !outgoingChunks.isEmpty {
             let next = outgoingChunks[0]
             let sent = manager.updateValue(
                 next,
                 for: eventCharacteristic,
-                onSubscribedCentrals: subscribedCentral.map { [$0] }
+                onSubscribedCentrals: [subscribedCentral]
             )
 
             guard sent else { return }
