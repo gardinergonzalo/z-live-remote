@@ -5,8 +5,10 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$ROOT/ios/ZLiveRemote/Assets.xcassets/AppIcon.appiconset"
 MASTER="$ROOT/ios/.generated/ZLiveIcon-1024.png"
 
-python3 -m pip install --quiet pillow
-python3 "$ROOT/scripts/generate-zlive-icon.py" "$MASTER"
+VENV="$ROOT/ios/.venv-icon"
+python3 -m venv "$VENV"
+"$VENV/bin/python" -m pip install --quiet pillow
+"$VENV/bin/python" "$ROOT/scripts/generate-zlive-icon.py" "$MASTER"
 
 mkdir -p "$OUT"
 
