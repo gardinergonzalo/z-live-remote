@@ -7,6 +7,7 @@ var playbackMonitor = null;
 var monitoredSceneIndex = -1;
 var monitorHasStarted = false;
 var monitorStoppedTicks = 0;
+var monitorTimelineTicks = 0;
 
 /*
  Z Live Remote - Scene Reader Test
@@ -74,6 +75,7 @@ function reportSelected() {
         var index = sceneIndexFromId(selectedId);
 
         outlet(0, ["selected_scene", index, selectedId, selectedName]);
+        reportSceneDuration(index);
     } catch (e) {
         outlet(0, ["error_selected", String(e)]);
         post("Z Live Remote selected scene error: " + e + "\n");
@@ -105,6 +107,7 @@ function select(index) {
         viewApi.set("selected_scene", "id", sceneApi.id);
 
         outlet(0, ["selected_by_zlr", i, sceneApi.id, sceneName]);
+        reportSceneDuration(i);
     } catch (e) {
         outlet(0, ["select_error", String(e)]);
         post("Z Live Remote select error: " + e + "\n");
@@ -161,6 +164,8 @@ function fire_watch() {
         monitoredSceneIndex = index;
         monitorHasStarted = false;
         monitorStoppedTicks = 0;
+        monitorTimelineTicks = 0;
+        reportSceneDuration(index);
 
         // Fire ONLY the prepared scene. Do not advance selection here.
         selectedApi.call("fire");
@@ -190,6 +195,13 @@ function pollMonitoredScene() {
                 outlet(0, ["scene_started", monitoredSceneIndex]);
             }
             monitorStoppedTicks = 0;
+            monitorTimelineTicks += 1;
+
+            if (monitorTimelineTicks >= 3) {
+                monitorTimelineTicks = 0;
+                reportTimeline(monitoredSceneIndex);
+            }
+
             return;
         }
 
@@ -220,6 +232,7 @@ function pollMonitoredScene() {
 
         outlet(0, ["scene_finished", finishedIndex]);
         outlet(0, ["prepared_next", nextIndex, nextApi.id, nextName]);
+        reportSceneDuration(nextIndex);
     } catch (e) {
         outlet(0, ["monitor_error", String(e)]);
         post("Z Live Remote monitor error: " + e + "\n");
@@ -238,6 +251,7 @@ function stopPlaybackMonitor() {
     monitoredSceneIndex = -1;
     monitorHasStarted = false;
     monitorStoppedTicks = 0;
+    monitorTimelineTicks = 0;
 }
 
 function sceneIsPlayingOrTriggered(sceneIndex) {
@@ -327,10 +341,196 @@ function stop() {
         var setApi = new LiveAPI("live_set");
         setApi.call("stop_all_clips");
         outlet(0, ["stop_all_clips"]);
+        outlet(0, ["timeline_reset"]);
     } catch (e) {
         outlet(0, ["stop_error", String(e)]);
         post("Z Live Remote stop error: " + e + "\n");
     }
+}
+
+
+function reportSceneDuration(sceneIndex) {
+    try {
+        var duration = sceneDurationSeconds(sceneIndex);
+        outlet(0, ["scene_duration", sceneIndex, duration]);
+    } catch (e) {
+        outlet(0, ["timeline_error", "duration", sceneIndex, String(e)]);
+    }
+}
+
+function reportTimeline(sceneIndex) {
+    try {
+        var info = sceneTimelineInfo(sceneIndex);
+
+        if (!info) {
+            return;
+        }
+
+        outlet(0, [
+            "timeline",
+            sceneIndex,
+            info.elapsed,
+            info.duration,
+            info.progress
+        ]);
+    } catch (e) {
+        outlet(0, ["timeline_error", "progress", sceneIndex, String(e)]);
+    }
+}
+
+function sceneDurationSeconds(sceneIndex) {
+    var setApi = new LiveAPI("live_set");
+    var tempo = parseFloat(cleanValue(setApi.get("tempo")));
+    if (isNaN(tempo) || tempo <= 0) {
+        tempo = 120;
+    }
+
+    var trackCount = parseInt(setApi.getcount("tracks"), 10);
+    var maxDuration = 0;
+
+    for (var t = 0; t < trackCount; t++) {
+        var trackApi = new LiveAPI("live_set tracks " + t);
+        var slotCount = parseInt(trackApi.getcount("clip_slots"), 10);
+
+        if (sceneIndex >= slotCount) {
+            continue;
+        }
+
+        var slotPath = "live_set tracks " + t + " clip_slots " + sceneIndex;
+        var slotApi = new LiveAPI(slotPath);
+        var hasClip = parseInt(cleanValue(slotApi.get("has_clip")), 10);
+
+        if (hasClip !== 1) {
+            continue;
+        }
+
+        var clipApi = new LiveAPI(slotPath + " clip");
+        var duration = clipDurationSeconds(clipApi, tempo);
+
+        if (duration > maxDuration) {
+            maxDuration = duration;
+        }
+    }
+
+    return maxDuration;
+}
+
+function sceneTimelineInfo(sceneIndex) {
+    var setApi = new LiveAPI("live_set");
+    var tempo = parseFloat(cleanValue(setApi.get("tempo")));
+    if (isNaN(tempo) || tempo <= 0) {
+        tempo = 120;
+    }
+
+    var trackCount = parseInt(setApi.getcount("tracks"), 10);
+    var maxDuration = 0;
+    var maxElapsed = 0;
+    var foundPlayingClip = false;
+
+    for (var t = 0; t < trackCount; t++) {
+        var trackApi = new LiveAPI("live_set tracks " + t);
+        var slotCount = parseInt(trackApi.getcount("clip_slots"), 10);
+
+        if (sceneIndex >= slotCount) {
+            continue;
+        }
+
+        var slotPath = "live_set tracks " + t + " clip_slots " + sceneIndex;
+        var slotApi = new LiveAPI(slotPath);
+        var hasClip = parseInt(cleanValue(slotApi.get("has_clip")), 10);
+
+        if (hasClip !== 1) {
+            continue;
+        }
+
+        var clipApi = new LiveAPI(slotPath + " clip");
+        var duration = clipDurationSeconds(clipApi, tempo);
+
+        if (duration > maxDuration) {
+            maxDuration = duration;
+        }
+
+        var isPlaying = parseInt(cleanValue(clipApi.get("is_playing")), 10);
+        if (isPlaying !== 1) {
+            continue;
+        }
+
+        foundPlayingClip = true;
+
+        var elapsed = clipElapsedSeconds(clipApi, tempo);
+        if (elapsed > maxElapsed) {
+            maxElapsed = elapsed;
+        }
+    }
+
+    if (!foundPlayingClip || maxDuration <= 0) {
+        return null;
+    }
+
+    maxElapsed = Math.max(0, Math.min(maxElapsed, maxDuration));
+
+    return {
+        elapsed: maxElapsed,
+        duration: maxDuration,
+        progress: maxDuration > 0 ? maxElapsed / maxDuration : 0
+    };
+}
+
+function clipDurationSeconds(clipApi, tempo) {
+    var isAudio = parseInt(cleanValue(clipApi.get("is_audio_clip")), 10);
+    var warping = isAudio === 1
+        ? parseInt(cleanValue(clipApi.get("warping")), 10)
+        : 1;
+
+    var loopStart = parseFloat(cleanValue(clipApi.get("loop_start")));
+    var loopEnd = parseFloat(cleanValue(clipApi.get("loop_end")));
+    var length = parseFloat(cleanValue(clipApi.get("length")));
+
+    var units = 0;
+
+    if (!isNaN(loopStart) && !isNaN(loopEnd) && loopEnd > loopStart) {
+        units = loopEnd - loopStart;
+    } else if (!isNaN(length) && length > 0) {
+        units = length;
+    }
+
+    if (units <= 0) {
+        return 0;
+    }
+
+    // Unwarped audio exposes loop positions in seconds.
+    if (isAudio === 1 && warping === 0) {
+        return units;
+    }
+
+    // MIDI and warped audio expose clip time in beats.
+    return units * 60.0 / tempo;
+}
+
+function clipElapsedSeconds(clipApi, tempo) {
+    var isAudio = parseInt(cleanValue(clipApi.get("is_audio_clip")), 10);
+    var warping = isAudio === 1
+        ? parseInt(cleanValue(clipApi.get("warping")), 10)
+        : 1;
+
+    var loopStart = parseFloat(cleanValue(clipApi.get("loop_start")));
+    var playingPosition = parseFloat(cleanValue(clipApi.get("playing_position")));
+
+    if (isNaN(loopStart)) {
+        loopStart = 0;
+    }
+
+    if (isNaN(playingPosition)) {
+        return 0;
+    }
+
+    var units = Math.max(0, playingPosition - loopStart);
+
+    if (isAudio === 1 && warping === 0) {
+        return units;
+    }
+
+    return units * 60.0 / tempo;
 }
 
 function isValidScene(name, hasClips) {
