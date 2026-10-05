@@ -40,7 +40,7 @@ jobs:
         working-directory: ios
         run: |
           mkdir -p Payload
-          cp -R build/Build/Products/Release-iphoneos/ZLiveRemote.app Payload/ZLiveRemote.app
+          cp -R "build/Build/Products/Release-iphoneos/Z Live Remote.app" Payload/ZLiveRemote.app
           zip -qry ZLiveRemote-unsigned.ipa Payload
 
       - name: Upload unsigned IPA
