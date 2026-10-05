@@ -1,0 +1,38 @@
+name: macOS Bridge Build
+
+on:
+  push:
+    paths:
+      - "mac/bridge/**"
+      - ".github/workflows/macos-bridge-build.yml"
+  pull_request:
+    paths:
+      - "mac/bridge/**"
+
+jobs:
+  build-intel:
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show architecture
+        run: uname -m
+
+      - name: Build release bridge
+        run: swift build -c release --package-path mac/bridge
+
+      - name: Package Intel bridge
+        run: |
+          mkdir -p dist
+          cp mac/bridge/.build/release/ZLiveRemoteBridge dist/ZLiveRemoteBridge
+          chmod +x dist/ZLiveRemoteBridge
+          tar -czf ZLiveRemoteBridge-macOS-Intel.tar.gz -C dist ZLiveRemoteBridge
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZLiveRemoteBridge-macOS-Intel
+          path: ZLiveRemoteBridge-macOS-Intel.tar.gz
+          if-no-files-found: error
