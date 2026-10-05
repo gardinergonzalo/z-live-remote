@@ -256,12 +256,12 @@ struct ShowView: View {
 
             Text("MANTENER STOP")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(palette.danger)
+                .foregroundStyle(.white)
                 .frame(width: 130, height: 48)
-                .background(panelBackground)
+                .background(palette.danger)
                 .overlay {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(palette.line, lineWidth: 1)
+                        .stroke(palette.danger, lineWidth: 1)
                 }
                 .clipShape(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -353,11 +353,13 @@ struct ShowView: View {
     }
 
     private var fireBackground: Color {
-        viewModel.playbackState == .playing ? .clear : palette.accent
+        viewModel.playbackState == .playing ? palette.playing : palette.accent
     }
 
     private var fireForeground: Color {
-        viewModel.playbackState == .playing ? palette.playing : Color(red: 0.09, green: 0.09, blue: 0.09)
+        viewModel.playbackState == .playing
+            ? Color(red: 0.05, green: 0.12, blue: 0.08)
+            : Color(red: 0.09, green: 0.09, blue: 0.09)
     }
 
     private var fireBorder: Color {
