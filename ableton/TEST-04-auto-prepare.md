@@ -50,3 +50,17 @@ scene_started 4
 scene_finished 4
 prepared_next 5 ... INGREDIENTES ...
 ```
+
+
+## Resultado de prueba real
+
+**APROBADO**
+
+En el Set real de Ableton Live 12 Suite:
+
+- la Scene actual se dispara;
+- al terminar naturalmente, la siguiente Scene válida queda seleccionada;
+- la reproducción queda detenida;
+- la siguiente Scene no se dispara automáticamente.
+
+Este es el flujo objetivo de Z Live Remote para escenario.
