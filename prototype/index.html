@@ -16,7 +16,7 @@
   --ready:#d48a18;
   --playing:#2a8b57;
   --danger:#c84b4b;
-  --r:8px;
+  --r:4px;
 }
 html[data-theme="dark"]{
   --bg:#1b1b1a;
@@ -38,7 +38,7 @@ body{display:grid;place-items:center;padding:18px;transition:background .18s eas
   min-height:850px;
   background:var(--bg);
   border:1px solid var(--line);
-  border-radius:18px;
+  border-radius:10px;
   overflow:hidden;
 }
 .topbar{
@@ -77,7 +77,8 @@ body{display:grid;place-items:center;padding:18px;transition:background .18s eas
 }
 .theme-toggle button{
   appearance:none;border:0;background:transparent;color:var(--muted);
-  padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer;
+  width:30px;height:28px;padding:0;font-size:15px;font-weight:700;cursor:pointer;
+  display:grid;place-items:center;
 }
 .theme-toggle button.active{background:var(--surface-2);color:var(--text)}
 main{padding:14px}
@@ -204,7 +205,7 @@ main{padding:14px}
   max-height:72vh;
   background:var(--surface);
   border:1px solid var(--line);
-  border-radius:12px;
+  border-radius:6px;
   overflow:hidden;
 }
 .sheet-head{
@@ -238,9 +239,9 @@ main{padding:14px}
   <header class="topbar">
     <div class="brand">Z LIVE REMOTE</div>
     <div class="connection"><i></i><span>CONECTADO</span></div>
-    <div class="theme-toggle">
-      <button id="lightBtn">CLARO</button>
-      <button id="darkBtn" class="active">OSCURO</button>
+    <div class="theme-toggle" aria-label="Tema">
+      <button id="lightBtn" aria-label="Tema claro" title="Tema claro">☀</button>
+      <button id="darkBtn" class="active" aria-label="Tema oscuro" title="Tema oscuro">☾</button>
     </div>
   </header>
 
