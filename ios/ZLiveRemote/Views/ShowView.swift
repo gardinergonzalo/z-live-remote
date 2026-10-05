@@ -17,53 +17,55 @@ struct ShowView: View {
                 palette.background
                     .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 10) {
-                        appHeader
+                if
+                    showsPersistentSetlist(geometry.size),
+                    let song = viewModel.currentSong
+                {
+                    tabletStageLayout(song: song, size: geometry.size)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            appHeader
 
-                        if let song = viewModel.currentSong {
-                            if usesTwoColumnLayout(geometry.size) {
-                                HStack(alignment: .top, spacing: 10) {
+                            if let song = viewModel.currentSong {
+                                if usesTwoColumnLayout(geometry.size) {
+                                    HStack(alignment: .top, spacing: 10) {
+                                        currentSongPanel(
+                                            song,
+                                            compactLandscape: isCompactLandscape(geometry.size)
+                                        )
+                                        .frame(maxWidth: .infinity)
+
+                                        VStack(spacing: 10) {
+                                            nextSongPanel
+                                            navigationControls
+                                            setlistButton
+                                        }
+                                        .frame(
+                                            width: min(
+                                                max(300, geometry.size.width * 0.36),
+                                                410
+                                            )
+                                        )
+                                    }
+                                } else {
                                     currentSongPanel(
                                         song,
                                         compactLandscape: isCompactLandscape(geometry.size)
                                     )
-                                        .frame(maxWidth: .infinity)
-
-                                    VStack(spacing: 10) {
-                                        nextSongPanel
-                                        navigationControls
-
-                                        if showsPersistentSetlist(geometry.size) {
-                                            persistentSetlist
-                                        } else {
-                                            setlistButton
-                                        }
-                                    }
-                                    .frame(
-                                        width: min(
-                                            max(300, geometry.size.width * 0.36),
-                                            410
-                                        )
-                                    )
+                                    nextSongPanel
+                                    navigationControls
+                                    setlistButton
                                 }
                             } else {
-                                currentSongPanel(
-                                    song,
-                                    compactLandscape: isCompactLandscape(geometry.size)
-                                )
-                                nextSongPanel
-                                navigationControls
-                                setlistButton
+                                disconnectedPanel
                             }
-                        } else {
-                            disconnectedPanel
                         }
+                        .padding(.horizontal, horizontalPadding(for: geometry.size))
+                        .padding(.bottom, 18)
                     }
-                    .padding(.horizontal, horizontalPadding(for: geometry.size))
-                    .padding(.bottom, 18)
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
             }
         }
         .foregroundStyle(palette.text)
@@ -73,6 +75,42 @@ struct ShowView: View {
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
         }
+    }
+
+    private func tabletStageLayout(song: Song, size: CGSize) -> some View {
+        VStack(spacing: 10) {
+            appHeader
+
+            HStack(alignment: .top, spacing: 10) {
+                ScrollView {
+                    currentSongPanel(
+                        song,
+                        compactLandscape: false
+                    )
+                    .padding(.bottom, 2)
+                }
+                .scrollIndicators(.hidden)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                VStack(spacing: 10) {
+                    nextSongPanel
+                    navigationControls
+
+                    persistentSetlist
+                        .frame(maxHeight: .infinity)
+                }
+                .frame(
+                    width: min(
+                        max(320, size.width * 0.36),
+                        430
+                    )
+                )
+                .frame(maxHeight: .infinity)
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .padding(.horizontal, horizontalPadding(for: size))
+        .padding(.bottom, 12)
     }
 
     private var appHeader: some View {
@@ -437,74 +475,101 @@ struct ShowView: View {
 
     private var persistentSetlist: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("SETLIST")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(1.2)
-                .foregroundStyle(palette.muted)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+            HStack {
+                Text("SETLIST")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(palette.muted)
 
-            ForEach(viewModel.songs) { song in
-                Button {
-                    viewModel.select(song: song)
-                } label: {
-                    HStack(spacing: 9) {
-                        Rectangle()
-                            .fill(
-                                viewModel.currentSong == song
-                                    ? palette.accent
-                                    : Color.clear
-                            )
-                            .frame(width: 3)
+                Spacer()
 
-                        Text(String(format: "%02d", song.id + 1))
-                            .font(.system(size: 10, weight: .medium))
-                            .monospacedDigit()
-                            .foregroundStyle(palette.muted)
-                            .frame(width: 28, alignment: .leading)
+                Text("\(viewModel.songs.count) TEMAS")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 40)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(song.name)
-                                .font(.system(size: 12, weight: .semibold))
-                                .lineLimit(1)
+            Rectangle()
+                .fill(palette.line)
+                .frame(height: 1)
 
-                            if !song.sounds.isEmpty {
-                                Text(song.sounds.joined(separator: " · "))
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(palette.muted)
-                                    .lineLimit(1)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(viewModel.songs) { song in
+                            Button {
+                                viewModel.select(song: song)
+                            } label: {
+                                HStack(spacing: 9) {
+                                    Rectangle()
+                                        .fill(
+                                            viewModel.currentSong == song
+                                                ? palette.accent
+                                                : Color.clear
+                                        )
+                                        .frame(width: 3)
+
+                                    Text(String(format: "%02d", song.id + 1))
+                                        .font(.system(size: 10, weight: .medium))
+                                        .monospacedDigit()
+                                        .foregroundStyle(palette.muted)
+                                        .frame(width: 28, alignment: .leading)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(song.name)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .lineLimit(1)
+
+                                        if !song.sounds.isEmpty {
+                                            Text(song.sounds.joined(separator: " · "))
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(palette.muted)
+                                                .lineLimit(1)
+                                        }
+                                    }
+
+                                    Spacer(minLength: 4)
+
+                                    if viewModel.currentSong == song {
+                                        Text(
+                                            viewModel.playbackState == .playing
+                                                ? "SONANDO"
+                                                : "PREPARADA"
+                                        )
+                                        .font(.system(size: 8, weight: .black))
+                                        .foregroundStyle(
+                                            viewModel.playbackState == .playing
+                                                ? palette.playing
+                                                : palette.ready
+                                        )
+                                    }
+                                }
+                                .frame(minHeight: 48)
+                                .padding(.trailing, 10)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .id(song.id)
+                            .overlay(alignment: .top) {
+                                if song.id != viewModel.songs.first?.id {
+                                    Rectangle()
+                                        .fill(palette.line)
+                                        .frame(height: 1)
+                                        .padding(.leading, 40)
+                                }
                             }
                         }
-
-                        Spacer(minLength: 4)
-
-                        if viewModel.currentSong == song {
-                            Text(
-                                viewModel.playbackState == .playing
-                                    ? "SONANDO"
-                                    : "PREPARADA"
-                            )
-                            .font(.system(size: 8, weight: .black))
-                            .foregroundStyle(
-                                viewModel.playbackState == .playing
-                                    ? palette.playing
-                                    : palette.ready
-                            )
-                        }
                     }
-                    .frame(minHeight: 46)
-                    .padding(.trailing, 10)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(palette.line)
-                        .frame(height: 1)
-                        .padding(.leading, 40)
+                .scrollIndicators(.visible)
+                .onChange(of: viewModel.currentSong?.id) { _, currentID in
+                    guard let currentID else { return }
+                    proxy.scrollTo(currentID, anchor: .center)
                 }
             }
         }
+        .frame(maxHeight: .infinity)
         .background(panelBackground)
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
