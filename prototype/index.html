@@ -1,52 +1,361 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Z Live Remote — UI v0.1</title>
+<title>Z Live Remote — Minimal UI v0.2</title>
 <style>
-:root{--bg:#07090d;--panel:#11161e;--line:#252e3a;--text:#f5f7fb;--muted:#8995a4;--accent:#745cff;--ok:#2bd67b;--warn:#ffb84d;--danger:#ff5268}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif}
-body{min-height:100vh;display:grid;place-items:center;padding:20px}
-.phone{width:min(430px,100%);min-height:820px;border:1px solid #202732;border-radius:34px;background:linear-gradient(#10141b,#080b10);overflow:hidden;box-shadow:0 30px 80px #0008}
-header{display:flex;justify-content:space-between;align-items:center;padding:18px;border-bottom:1px solid #1c232c}
-.brand{font-weight:900;letter-spacing:.02em}.status{font-size:11px;font-weight:800;color:#9af0bf;background:#163224;border:1px solid #27583d;padding:8px 10px;border-radius:999px}
-main{padding:16px}.card{background:linear-gradient(180deg,#151b24,#0e131a);border:1px solid var(--line);border-radius:24px;padding:20px}
-.top{display:flex;justify-content:space-between;align-items:center}.state{font-size:12px;font-weight:900;letter-spacing:.14em;color:var(--warn)}.num{font-size:12px;color:#a6b0bd;background:#1a212b;padding:7px 9px;border-radius:10px}
-.title{margin:18px 0 8px;font-weight:950;line-height:.98;letter-spacing:-1.3px;font-size:clamp(24px,8.1vw,34px);text-wrap:balance;overflow-wrap:anywhere}
-.subtitle{color:var(--muted);font-size:12px;margin-bottom:18px}.label{font-size:10px;font-weight:900;letter-spacing:.14em;color:#6f7b8a;margin-bottom:8px}
-.sounds{display:flex;gap:8px;flex-wrap:wrap}.sound{padding:9px 11px;border:1px solid #26313f;background:#111823;border-radius:12px;font-size:13px;font-weight:700}
-.fire{width:100%;min-height:90px;border:0;border-radius:21px;margin-top:18px;background:linear-gradient(135deg,#755cff,#4f7eff);color:white;font-size:21px;font-weight:950}
-.next{margin-top:12px;border:1px solid #202936;background:#0e141c;border-radius:18px;padding:14px}.next b{display:block;margin-top:4px;font-size:16px}.next span{font-size:10px;color:#748091;letter-spacing:.12em;font-weight:900}
-.nav{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.nav button,.footer button{min-height:54px;border:1px solid #202936;border-radius:17px;background:#10161e;color:#e5eaf0;font-weight:850}
-.footer{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:10px}.footer .stop{color:#ff9aaa;border-color:#4a2530;background:#1b1015}
-@media(max-width:520px){body{padding:0}.phone{border:0;border-radius:0;min-height:100vh}.title{font-size:clamp(25px,8vw,33px)}}
+:root{
+  --bg:#f2f2ef;
+  --surface:#ffffff;
+  --surface-2:#e9e9e5;
+  --line:#d4d4cf;
+  --text:#171717;
+  --muted:#6e6e69;
+  --accent:#ff764d;
+  --ready:#d48a18;
+  --playing:#2a8b57;
+  --danger:#c84b4b;
+  --r:8px;
+}
+html[data-theme="dark"]{
+  --bg:#1b1b1a;
+  --surface:#242423;
+  --surface-2:#2d2d2b;
+  --line:#3d3d3a;
+  --text:#f2f2ef;
+  --muted:#a5a59f;
+  --accent:#ff8a65;
+  --ready:#f1aa3c;
+  --playing:#57c584;
+  --danger:#e66c6c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif}
+body{display:grid;place-items:center;padding:18px;transition:background .18s ease,color .18s ease}
+.phone{
+  width:min(430px,100%);
+  min-height:850px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:18px;
+  overflow:hidden;
+}
+.topbar{
+  height:58px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 14px;
+  border-bottom:1px solid var(--line);
+}
+.brand{
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:.03em;
+  white-space:nowrap;
+}
+.connection{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  color:var(--muted);
+  font-size:11px;
+  margin-left:auto;
+}
+.connection i{
+  display:block;
+  width:7px;height:7px;border-radius:50%;
+  background:var(--playing);
+}
+.theme-toggle{
+  display:flex;
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  overflow:hidden;
+  margin-left:4px;
+}
+.theme-toggle button{
+  appearance:none;border:0;background:transparent;color:var(--muted);
+  padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer;
+}
+.theme-toggle button.active{background:var(--surface-2);color:var(--text)}
+main{padding:14px}
+.section{
+  border:1px solid var(--line);
+  background:var(--surface);
+  border-radius:var(--r);
+}
+.now{padding:16px}
+.status-row{display:flex;align-items:center;gap:8px}
+.status{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.11em;
+  color:var(--ready);
+}
+.song-no{
+  margin-left:auto;
+  color:var(--muted);
+  font-size:11px;
+  font-variant-numeric:tabular-nums;
+}
+.song-title{
+  margin:18px 0 6px;
+  font-size:clamp(25px,7.2vw,31px);
+  line-height:1.02;
+  font-weight:800;
+  letter-spacing:-.025em;
+  line-clamp:2;
+  -webkit-line-clamp:2;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.helper{font-size:12px;color:var(--muted)}
+.divider{height:1px;background:var(--line);margin:16px 0}
+.label{
+  font-size:10px;
+  font-weight:800;
+  color:var(--muted);
+  letter-spacing:.10em;
+  margin-bottom:8px;
+}
+.sounds{display:flex;flex-direction:column}
+.sound{
+  display:flex;gap:10px;align-items:center;
+  min-height:36px;
+  border-top:1px solid var(--line);
+  font-size:13px;
+}
+.sound:first-child{border-top:0}
+.sound .n{
+  width:22px;color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums
+}
+.fire{
+  width:100%;
+  min-height:64px;
+  margin-top:16px;
+  border:1px solid var(--accent);
+  border-radius:var(--r);
+  background:var(--accent);
+  color:#151515;
+  font-weight:850;
+  font-size:16px;
+  letter-spacing:.01em;
+  cursor:pointer;
+}
+.fire.playing{
+  background:transparent;
+  color:var(--playing);
+  border-color:var(--playing);
+}
+.next{
+  margin-top:10px;
+  padding:12px 14px;
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:8px;
+  align-items:center;
+}
+.next .title{font-size:14px;font-weight:750}
+.next .meta{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.next .arrow{color:var(--muted)}
+.controls{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+.btn{
+  min-height:48px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  color:var(--text);
+  border-radius:var(--r);
+  font-weight:750;
+  font-size:12px;
+  cursor:pointer;
+}
+.bottom{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:8px;
+  margin-top:8px;
+}
+.stop{
+  color:var(--danger);
+  border-color:color-mix(in srgb,var(--danger) 45%,var(--line));
+  min-width:124px;
+}
+.footer{
+  margin-top:12px;
+  text-align:center;
+  font-size:10px;
+  color:var(--muted);
+}
+.drawer{
+  position:fixed;inset:0;background:#0007;display:none;align-items:flex-end;justify-content:center;
+  padding:18px;
+}
+.drawer.open{display:flex}
+.sheet{
+  width:min(430px,100%);
+  max-height:72vh;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+}
+.sheet-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px;border-bottom:1px solid var(--line)
+}
+.sheet-head strong{font-size:14px}
+.close{border:1px solid var(--line);background:var(--surface-2);color:var(--text);border-radius:var(--r);width:32px;height:32px;cursor:pointer}
+.setlist{max-height:58vh;overflow:auto}
+.row{
+  width:100%;display:grid;grid-template-columns:34px 1fr auto;gap:8px;
+  align-items:center;text-align:left;padding:12px 14px;border:0;border-top:1px solid var(--line);
+  background:var(--surface);color:var(--text);cursor:pointer
+}
+.row:first-child{border-top:0}
+.row .num{color:var(--muted);font-size:10px}
+.row .name{font-size:13px;font-weight:720}
+.row .refs{font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.current{box-shadow:inset 3px 0 0 var(--accent)}
+.row .tag{font-size:9px;color:var(--ready);font-weight:800}
+@media(max-width:520px){
+  body{padding:0}
+  .phone{width:100%;min-height:100vh;border:0;border-radius:0}
+  .topbar{padding-top:env(safe-area-inset-top);height:calc(58px + env(safe-area-inset-top))}
+  main{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body>
 <section class="phone">
-<header><div class="brand">Z LIVE REMOTE</div><div class="status">● CONECTADO</div></header>
-<main>
-<section class="card">
-<div class="top"><div class="state">● PREPARADA</div><div class="num">05</div></div>
-<h1 class="title">VAMPI +1</h1>
-<div class="subtitle">Lista para disparar</div>
-<div class="label">SONIDOS</div>
-<div class="sounds">
-<div class="sound">Rhodes Mark I</div>
-<div class="sound">Piano Concert Grand</div>
-<div class="sound">Brass Section</div>
+  <header class="topbar">
+    <div class="brand">Z LIVE REMOTE</div>
+    <div class="connection"><i></i><span>CONECTADO</span></div>
+    <div class="theme-toggle">
+      <button id="lightBtn">CLARO</button>
+      <button id="darkBtn" class="active">OSCURO</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="section now">
+      <div class="status-row">
+        <div class="status" id="state">PREPARADA</div>
+        <div class="song-no" id="number">05</div>
+      </div>
+
+      <h1 class="song-title" id="title">VAMPI +1</h1>
+      <div class="helper" id="helper">Lista para disparar</div>
+
+      <div class="divider"></div>
+
+      <div class="label">SONIDOS / REFERENCIAS</div>
+      <div class="sounds" id="sounds"></div>
+
+      <button class="fire" id="fire">DISPARAR</button>
+    </section>
+
+    <section class="section next">
+      <div>
+        <div class="label" style="margin-bottom:4px">SIGUIENTE</div>
+        <div class="title" id="nextTitle">INGREDIENTES</div>
+        <div class="meta" id="nextMeta">Piano Bright · Pad Analog</div>
+      </div>
+      <div class="arrow">›</div>
+    </section>
+
+    <div class="controls">
+      <button class="btn" id="prev">← ANTERIOR</button>
+      <button class="btn" id="next">SIGUIENTE →</button>
+    </div>
+
+    <div class="bottom">
+      <button class="btn" id="setlistBtn">SETLIST</button>
+      <button class="btn stop" id="stop">MANTENER STOP</button>
+    </div>
+
+    <div class="footer">Z Live Remote · Minimal UI v0.2</div>
+  </main>
+</section>
+
+<div class="drawer" id="drawer">
+  <section class="sheet">
+    <div class="sheet-head">
+      <strong>SETLIST</strong>
+      <button class="close" id="close">×</button>
+    </div>
+    <div class="setlist" id="setlist"></div>
+  </section>
 </div>
-<button class="fire" id="fire">▶ DISPARAR</button>
-</section>
-<section class="next"><span>SIGUIENTE</span><b>INGREDIENTES</b></section>
-<div class="nav"><button>← ANTERIOR</button><button>SIGUIENTE →</button></div>
-<div class="footer"><button>☷ SETLIST</button><button class="stop">■ STOP</button></div>
-</main>
-</section>
+
 <script>
-const fire=document.querySelector("#fire");
-fire.addEventListener("click",()=>{fire.textContent="● REPRODUCIENDO";document.querySelector(".state").textContent="● REPRODUCIENDO";document.querySelector(".state").style.color="var(--ok)"});
+const songs=[
+  {name:"PUESTO",sounds:["Piano Stage","Lead Synth"]},
+  {name:"RISA",sounds:["Rhodes Mark I","Warm Pad"]},
+  {name:"DESFACHATADOS",sounds:["Piano Concert Grand","Synth Brass"]},
+  {name:"Y QUE",sounds:["Bright Piano","Analog Strings"]},
+  {name:"VAMPI +1",sounds:["Rhodes Mark I","Piano Concert Grand","Brass Section"]},
+  {name:"INGREDIENTES",sounds:["Piano Bright","Pad Analog"]},
+  {name:"BYE BYE",sounds:["Stage EP","Synth Lead"]},
+  {name:"DELECTRICO",sounds:["Digital Piano","Warm Strings"]},
+  {name:"SIN MI DIABLO",sounds:["Organ B3","Analog Pad"]},
+  {name:"LOS CALIENTES",sounds:["Piano Pop","Brass Stack"]},
+  {name:"COMO ERAN LOS BARES ANTES",sounds:["Grand Piano","Vintage Pad"]},
+  {name:"MICRODANCING",sounds:["Rhodes","Mono Synth"]}
+];
+let current=4,playing=false;
+const $=s=>document.querySelector(s);
+function render(){
+  const s=songs[current], n=songs[current+1];
+  $("#number").textContent=String(current+1).padStart(2,"0");
+  $("#title").textContent=s.name;
+  $("#sounds").innerHTML=s.sounds.map((x,i)=>`<div class="sound"><span class="n">${String(i+1).padStart(2,"0")}</span><span>${x}</span></div>`).join("");
+  $("#state").textContent=playing?"REPRODUCIENDO":"PREPARADA";
+  $("#state").style.color=playing?"var(--playing)":"var(--ready)";
+  $("#helper").textContent=playing?"La canción está sonando":"Lista para disparar";
+  $("#fire").textContent=playing?"REPRODUCIENDO":"DISPARAR";
+  $("#fire").classList.toggle("playing",playing);
+  $("#nextTitle").textContent=n?n.name:"FIN DE SETLIST";
+  $("#nextMeta").textContent=n?n.sounds.join(" · "):"";
+  renderSetlist();
+}
+function renderSetlist(){
+  $("#setlist").innerHTML=songs.map((s,i)=>`
+    <button class="row ${i===current?"current":""}" data-i="${i}">
+      <span class="num">${String(i+1).padStart(2,"0")}</span>
+      <span><div class="name">${s.name}</div><div class="refs">${s.sounds.join(" · ")}</div></span>
+      <span class="tag">${i===current?(playing?"SONANDO":"PREPARADA"):""}</span>
+    </button>`).join("");
+  document.querySelectorAll(".row").forEach(r=>r.onclick=()=>{
+    current=Number(r.dataset.i);playing=false;$("#drawer").classList.remove("open");render();
+  });
+}
+$("#fire").onclick=()=>{if(!playing){playing=true;render()}};
+$("#prev").onclick=()=>{if(current>0){current--;playing=false;render()}};
+$("#next").onclick=()=>{if(current<songs.length-1){current++;playing=false;render()}};
+$("#stop").onpointerdown=()=>{
+  window.__stopTimer=setTimeout(()=>{playing=false;render()},800);
+};
+$("#stop").onpointerup=$("#stop").onpointerleave=()=>clearTimeout(window.__stopTimer);
+$("#setlistBtn").onclick=()=>$("#drawer").classList.add("open");
+$("#close").onclick=()=>$("#drawer").classList.remove("open");
+$("#drawer").onclick=e=>{if(e.target===$("#drawer"))$("#drawer").classList.remove("open")};
+$("#lightBtn").onclick=()=>{
+  document.documentElement.dataset.theme="light";
+  $("#lightBtn").classList.add("active");$("#darkBtn").classList.remove("active");
+};
+$("#darkBtn").onclick=()=>{
+  document.documentElement.dataset.theme="dark";
+  $("#darkBtn").classList.add("active");$("#lightBtn").classList.remove("active");
+};
+render();
 </script>
 </body>
 </html>
