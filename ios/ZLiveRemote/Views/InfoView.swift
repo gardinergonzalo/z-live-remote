@@ -120,21 +120,7 @@ struct InfoView: View {
                     .cornerRadius(2)
                 }
                 .chartYScale(domain: bpmDomain)
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 8)) { value in
-                        AxisGridLine()
-                            .foregroundStyle(palette.line.opacity(0.45))
-                        AxisTick()
-                            .foregroundStyle(palette.line)
-                        AxisValueLabel {
-                            if let number = value.as(Int.self) {
-                                Text(String(format: "%02d", number))
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundStyle(palette.muted)
-                            }
-                        }
-                    }
-                }
+                .chartXAxis(.hidden)
                 .chartYAxis {
                     AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) {
                         AxisGridLine()
@@ -146,6 +132,17 @@ struct InfoView: View {
                 }
                 .frame(height: 220)
                 .clipped()
+
+                HStack {
+                    Text("INICIO")
+                    Spacer()
+                    Text("ORDEN DEL SETLIST")
+                    Spacer()
+                    Text("FIN")
+                }
+                .font(.system(size: 8, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(palette.muted)
 
                 Rectangle()
                     .fill(palette.line)
