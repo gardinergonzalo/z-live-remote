@@ -7,7 +7,6 @@ var playbackMonitor = null;
 var monitoredSceneIndex = -1;
 var monitorHasStarted = false;
 var monitorStoppedTicks = 0;
-var monitorTimelineTicks = 0;
 var monitorTrackApis = [];
 var monitorTimelineApi = null;
 var monitorTimelineDuration = 0;
@@ -16,12 +15,11 @@ var monitorTimelineUsesSeconds = false;
 var monitorTempo = 120;
 var sceneDurationCache = {};
 
-var MONITOR_INTERVAL_MS = 250;
-var TIMELINE_EVERY_TICKS = 2;
+var MONITOR_INTERVAL_MS = 500;
 var STOPPED_DEBOUNCE_TICKS = 2;
 
 /*
- Z Live Remote v0.4.1 - Scene Reader performance hotfix
+ Z Live Remote v0.4.2 - Scene Reader local timeline
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
@@ -56,6 +54,10 @@ function scan() {
                 sceneId,
                 sceneName
             ]);
+
+            if (valid) {
+                reportSceneTempo(i);
+            }
         }
 
         reportSelected();
@@ -86,6 +88,7 @@ function reportSelected() {
         var index = sceneIndexFromId(selectedId);
 
         outlet(0, ["selected_scene", index, selectedId, selectedName]);
+        reportSceneTempo(index);
         reportSceneDuration(index);
         resumeWatchIfPlaying(index);
     } catch (e) {
@@ -115,7 +118,6 @@ function resumeWatchIfPlaying(index) {
     monitoredSceneIndex = index;
     monitorHasStarted = true;
     monitorStoppedTicks = 0;
-    monitorTimelineTicks = 0;
     prepareMonitoringState(index, trackApis);
 
     outlet(0, ["scene_started", index]);
@@ -150,6 +152,7 @@ function select(index) {
         viewApi.set("selected_scene", "id", sceneApi.id);
 
         outlet(0, ["selected_by_zlr", i, sceneApi.id, sceneName]);
+        reportSceneTempo(i);
         reportSceneDuration(i);
     } catch (e) {
         outlet(0, ["select_error", String(e)]);
@@ -207,8 +210,8 @@ function fire_watch() {
         monitoredSceneIndex = index;
         monitorHasStarted = false;
         monitorStoppedTicks = 0;
-        monitorTimelineTicks = 0;
         prepareMonitoringState(index, buildTrackApis());
+        reportSceneTempo(index);
         reportSceneDuration(index);
 
         // Fire ONLY the prepared scene. Do not advance selection here.
@@ -240,16 +243,13 @@ function pollMonitoredScene() {
             if (!monitorHasStarted) {
                 monitorHasStarted = true;
                 outlet(0, ["scene_started", monitoredSceneIndex]);
-            }
 
-            monitorStoppedTicks = 0;
-            monitorTimelineTicks += 1;
-
-            if (monitorTimelineTicks >= TIMELINE_EVERY_TICKS) {
-                monitorTimelineTicks = 0;
+                // One real snapshot aligns the iPhone/iPad clock.
+                // The progress bar then animates locally without polling Live.
                 reportCachedTimeline(monitoredSceneIndex);
             }
 
+            monitorStoppedTicks = 0;
             return;
         }
 
@@ -279,6 +279,7 @@ function pollMonitoredScene() {
 
         outlet(0, ["scene_finished", finishedIndex]);
         outlet(0, ["prepared_next", nextIndex, nextApi.id, nextName]);
+        reportSceneTempo(nextIndex);
         reportSceneDuration(nextIndex);
     } catch (e) {
         outlet(0, ["monitor_error", String(e)]);
@@ -298,7 +299,6 @@ function stopPlaybackMonitor() {
     monitoredSceneIndex = -1;
     monitorHasStarted = false;
     monitorStoppedTicks = 0;
-    monitorTimelineTicks = 0;
     monitorTrackApis = [];
     monitorTimelineApi = null;
     monitorTimelineDuration = 0;
@@ -334,21 +334,18 @@ function sceneIsPlayingWithApis(sceneIndex, trackApis) {
 }
 
 function prepareMonitoringState(sceneIndex, trackApis) {
-    monitorTrackApis = trackApis || buildTrackApis();
+    var allTrackApis = trackApis || buildTrackApis();
+    var relevantTrackApis = [];
+
+    monitorTrackApis = [];
     monitorTimelineApi = null;
     monitorTimelineDuration = 0;
     monitorTimelineLoopStart = 0;
     monitorTimelineUsesSeconds = false;
+    monitorTempo = sceneTempoBPM(sceneIndex);
 
-    var setApi = new LiveAPI("live_set");
-    monitorTempo = parseFloat(cleanValue(setApi.get("tempo")));
-
-    if (isNaN(monitorTempo) || monitorTempo <= 0) {
-        monitorTempo = 120;
-    }
-
-    for (var t = 0; t < monitorTrackApis.length; t++) {
-        var trackApi = monitorTrackApis[t];
+    for (var t = 0; t < allTrackApis.length; t++) {
+        var trackApi = allTrackApis[t];
         var slotCount = parseInt(trackApi.getcount("clip_slots"), 10);
 
         if (sceneIndex >= slotCount) {
@@ -362,6 +359,8 @@ function prepareMonitoringState(sceneIndex, trackApis) {
         if (hasClip !== 1) {
             continue;
         }
+
+        relevantTrackApis.push(trackApi);
 
         var clipApi = new LiveAPI(slotPath + " clip");
         var duration = clipDurationSeconds(clipApi, monitorTempo);
@@ -385,6 +384,8 @@ function prepareMonitoringState(sceneIndex, trackApis) {
             monitorTimelineUsesSeconds = isAudio === 1 && warping === 0;
         }
     }
+
+    monitorTrackApis = relevantTrackApis;
 
     if (monitorTimelineDuration > 0) {
         sceneDurationCache[sceneIndex] = monitorTimelineDuration;
@@ -505,6 +506,35 @@ function stop() {
 }
 
 
+function sceneTempoBPM(sceneIndex) {
+    try {
+        var sceneApi = new LiveAPI("live_set scenes " + sceneIndex);
+        var enabled = parseInt(cleanValue(sceneApi.get("tempo_enabled")), 10);
+        var tempo = parseFloat(cleanValue(sceneApi.get("tempo")));
+
+        if (enabled === 1 && !isNaN(tempo) && tempo > 0) {
+            return tempo;
+        }
+    } catch (ignore) {}
+
+    var setApi = new LiveAPI("live_set");
+    var setTempo = parseFloat(cleanValue(setApi.get("tempo")));
+
+    if (isNaN(setTempo) || setTempo <= 0) {
+        return 120;
+    }
+
+    return setTempo;
+}
+
+function reportSceneTempo(sceneIndex) {
+    try {
+        outlet(0, ["scene_bpm", sceneIndex, sceneTempoBPM(sceneIndex)]);
+    } catch (e) {
+        outlet(0, ["timeline_error", "tempo", sceneIndex, String(e)]);
+    }
+}
+
 function reportSceneDuration(sceneIndex) {
     try {
         var duration = sceneDurationSeconds(sceneIndex);
@@ -542,12 +572,7 @@ function sceneDurationSeconds(sceneIndex) {
         return sceneDurationCache[sceneIndex];
     }
 
-    var setApi = new LiveAPI("live_set");
-    var tempo = parseFloat(cleanValue(setApi.get("tempo")));
-    if (isNaN(tempo) || tempo <= 0) {
-        tempo = 120;
-    }
-
+    var tempo = sceneTempoBPM(sceneIndex);
     var trackApis = buildTrackApis();
     var maxDuration = 0;
 
