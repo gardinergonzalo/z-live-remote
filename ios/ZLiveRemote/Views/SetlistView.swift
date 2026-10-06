@@ -22,6 +22,7 @@ struct SetlistView: View {
                             row(for: song)
                         }
                         .buttonStyle(.plain)
+                        .disabled(viewModel.playbackState == .playing)
                     }
                 }
                 .background(palette.surface)
