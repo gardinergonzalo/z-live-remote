@@ -1,5 +1,5 @@
 Z Live Remote Max Component
-Version: 0.4.2 Local Timeline + BPM
+Version: 0.4.3 Live Safety + BPM
 Protocol: 2
 Files:
 - zlr_scene_reader.js
