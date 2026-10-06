@@ -482,8 +482,12 @@ struct ShowView: View {
                 viewModel.selectNext()
             }
         }
-        .disabled(!viewModel.isConnected)
-        .opacity(viewModel.isConnected ? 1 : 0.5)
+        .disabled(!viewModel.isConnected || viewModel.playbackState == .playing)
+        .opacity(
+            viewModel.isConnected && viewModel.playbackState != .playing
+                ? 1
+                : 0.5
+        )
     }
 
     private var setlistButton: some View {
@@ -590,6 +594,7 @@ struct ShowView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .disabled(viewModel.playbackState == .playing)
                             .id(song.id)
                             .overlay(alignment: .top) {
                                 if song.id != viewModel.songs.first?.id {
