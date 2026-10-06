@@ -19,7 +19,7 @@ var MONITOR_INTERVAL_MS = 500;
 var STOPPED_DEBOUNCE_TICKS = 2;
 
 /*
- Z Live Remote v0.4.2 - Scene Reader local timeline
+ Z Live Remote v0.4.3 - Scene Reader local timeline + BPM sync
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
@@ -46,18 +46,17 @@ function scan() {
             var hasClips = sceneHasAnyClip(i);
             var valid = isValidScene(sceneName, hasClips);
 
+            var sceneBPM = valid ? sceneTempoBPM(i) : 0;
+
             outlet(1, [
                 "scene",
                 i,
                 valid ? 1 : 0,
                 hasClips ? 1 : 0,
                 sceneId,
+                sceneBPM,
                 sceneName
             ]);
-
-            if (valid) {
-                reportSceneTempo(i);
-            }
         }
 
         reportSelected();
@@ -509,10 +508,10 @@ function stop() {
 function sceneTempoBPM(sceneIndex) {
     try {
         var sceneApi = new LiveAPI("live_set scenes " + sceneIndex);
-        var enabled = parseInt(cleanValue(sceneApi.get("tempo_enabled")), 10);
         var tempo = parseFloat(cleanValue(sceneApi.get("tempo")));
 
-        if (enabled === 1 && !isNaN(tempo) && tempo > 0) {
+        // Live returns -1 when the Scene tempo is disabled.
+        if (!isNaN(tempo) && tempo > 0) {
             return tempo;
         }
     } catch (ignore) {}
