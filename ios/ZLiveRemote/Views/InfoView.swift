@@ -145,17 +145,26 @@ struct InfoView: View {
                     }
                 }
                 .frame(height: 220)
+                .clipped()
 
-                HStack(spacing: 8) {
+                Rectangle()
+                    .fill(palette.line)
+                    .frame(height: 1)
+                    .padding(.top, 4)
+
+                HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .font(.system(size: 11, weight: .semibold))
+                        .padding(.top, 1)
 
                     Text(
                         "La curva usa BPM como referencia rítmica. No mide por sí sola la intensidad musical real."
                     )
                     .font(.system(size: 10, weight: .medium))
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .foregroundStyle(palette.muted)
+                .padding(.top, 2)
             }
         }
         .padding(14)
