@@ -105,13 +105,20 @@ final class LiveRemoteViewModel: ObservableObject {
     }
 
     func selectPrevious() {
-        guard isConnected, !songs.isEmpty, currentIndex > 0 else { return }
+        guard
+            isConnected,
+            playbackState != .playing,
+            !songs.isEmpty,
+            currentIndex > 0
+        else { return }
+
         selectPosition(currentIndex - 1)
     }
 
     func selectNext() {
         guard
             isConnected,
+            playbackState != .playing,
             !songs.isEmpty,
             currentIndex + 1 < songs.count
         else { return }
@@ -120,7 +127,7 @@ final class LiveRemoteViewModel: ObservableObject {
     }
 
     func select(song: Song) {
-        guard isConnected else { return }
+        guard isConnected, playbackState != .playing else { return }
         guard let index = songs.firstIndex(of: song) else { return }
 
         isSetlistPresented = false
