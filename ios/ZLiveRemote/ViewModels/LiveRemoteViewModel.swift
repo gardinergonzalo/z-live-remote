@@ -14,10 +14,15 @@ final class LiveRemoteViewModel: ObservableObject {
     @Published private(set) var timelineDuration: Double = 0
     @Published private(set) var timelineProgress: Double = 0
     @Published private(set) var sceneBPMs: [Int: Double] = [:]
+    @Published private(set) var setlistRefreshPending = false
 
     @Published var isSetlistPresented = false
+    @Published var isInfoPresented = false
 
     private var stagedScenes: [Int: Song] = [:]
+    private var stagedSceneDurations: [Int: Double] = [:]
+    private var stagedSceneBPMs: [Int: Double] = [:]
+    private var isSceneScanInProgress = false
     private var pendingSelectedSceneIndex: Int?
     private var sceneDurations: [Int: Double] = [:]
     private var localTimelineTimer: Timer?
@@ -91,6 +96,44 @@ final class LiveRemoteViewModel: ObservableObject {
 
     var currentBPMLabel: String? {
         bpmLabel(for: currentSong)
+    }
+
+    func duration(for song: Song?) -> Double? {
+        guard let song else { return nil }
+        return sceneDurations[song.id]
+    }
+
+    var totalSetlistDuration: Double {
+        songs.reduce(0) { partial, song in
+            partial + max(0, sceneDurations[song.id] ?? 0)
+        }
+    }
+
+    var knownDurationSongCount: Int {
+        songs.reduce(0) { count, song in
+            guard let duration = sceneDurations[song.id], duration > 0 else {
+                return count
+            }
+            return count + 1
+        }
+    }
+
+    var hasCompleteSetlistDuration: Bool {
+        !songs.isEmpty && knownDurationSongCount == songs.count
+    }
+
+    var averageBPM: Double? {
+        let values = songs.compactMap { sceneBPMs[$0.id] }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    var minimumBPM: Double? {
+        songs.compactMap { sceneBPMs[$0.id] }.min()
+    }
+
+    var maximumBPM: Double? {
+        songs.compactMap { sceneBPMs[$0.id] }.max()
     }
 
     func startRemoteConnection() {
@@ -257,6 +300,11 @@ final class LiveRemoteViewModel: ObservableObject {
     }
 
     private func selectSceneIndexFromAbleton(_ sceneIndex: Int) {
+        if isSceneScanInProgress {
+            pendingSelectedSceneIndex = sceneIndex
+            return
+        }
+
         guard let position = songs.firstIndex(where: { $0.id == sceneIndex }) else {
             pendingSelectedSceneIndex = sceneIndex
             return
@@ -315,12 +363,22 @@ final class LiveRemoteViewModel: ObservableObject {
             .map(\.value)
 
         songs = parsed
+        sceneDurations = stagedSceneDurations
+        sceneBPMs = stagedSceneBPMs
+
         stagedScenes.removeAll(keepingCapacity: true)
+        stagedSceneDurations.removeAll(keepingCapacity: true)
+        stagedSceneBPMs.removeAll(keepingCapacity: true)
+        isSceneScanInProgress = false
+        setlistRefreshPending = false
 
         if let pendingSelectedSceneIndex {
+            self.pendingSelectedSceneIndex = nil
             selectSceneIndexFromAbleton(pendingSelectedSceneIndex)
         } else if currentIndex >= songs.count {
             currentIndex = max(songs.count - 1, 0)
+            syncTimelineForCurrentScene()
+        } else if playbackState != .playing {
             syncTimelineForCurrentScene()
         }
 
@@ -465,7 +523,11 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 self.markMaxAvailable(true, client: client)
 
             case "scan_begin":
+                self.isSceneScanInProgress = true
+                self.setlistRefreshPending = false
                 self.stagedScenes.removeAll(keepingCapacity: true)
+                self.stagedSceneDurations.removeAll(keepingCapacity: true)
+                self.stagedSceneBPMs.removeAll(keepingCapacity: true)
 
             case "scene":
                 guard
@@ -489,7 +551,11 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 self.stagedScenes[sceneIndex] = song
 
                 if let bpm = normalized.bpm, bpm > 0 {
-                    self.sceneBPMs[sceneIndex] = bpm
+                    if self.isSceneScanInProgress {
+                        self.stagedSceneBPMs[sceneIndex] = bpm
+                    } else {
+                        self.sceneBPMs[sceneIndex] = bpm
+                    }
                 }
 
             case "scan_end":
@@ -506,7 +572,11 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                     bpm > 0
                 else { return }
 
-                self.sceneBPMs[sceneIndex] = bpm
+                if self.isSceneScanInProgress {
+                    self.stagedSceneBPMs[sceneIndex] = bpm
+                } else {
+                    self.sceneBPMs[sceneIndex] = bpm
+                }
 
             case "scene_duration":
                 guard
@@ -514,10 +584,16 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                     let duration = event.duration
                 else { return }
 
-                self.sceneDurations[sceneIndex] = max(0, duration)
+                let normalizedDuration = max(0, duration)
+
+                if self.isSceneScanInProgress {
+                    self.stagedSceneDurations[sceneIndex] = normalizedDuration
+                } else {
+                    self.sceneDurations[sceneIndex] = normalizedDuration
+                }
 
                 if self.currentSong?.id == sceneIndex {
-                    self.timelineDuration = max(0, duration)
+                    self.timelineDuration = normalizedDuration
 
                     if self.playbackState != .playing {
                         self.timelineElapsed = 0
@@ -556,6 +632,9 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
 
             case "scene_finished":
                 break
+
+            case "setlist_change_pending":
+                self.setlistRefreshPending = true
 
             case "prepared_next":
                 guard let sceneIndex = event.index else { return }
