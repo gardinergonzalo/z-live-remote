@@ -1,4 +1,4 @@
-// Z Live Remote v0.4.3 - Node for Max transport
+// Z Live Remote v0.5.0 - Node for Max transport
 const maxApi = require("max-api");
 const dgram = require("dgram");
 
@@ -108,6 +108,10 @@ maxApi.addHandler("timeline", (index, elapsed, duration, progress) => {
 
 maxApi.addHandler("timeline_reset", () => {
     send({ type: "timeline_reset" });
+});
+
+maxApi.addHandler("setlist_change_pending", () => {
+    send({ type: "setlist_change_pending" });
 });
 
 
