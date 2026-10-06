@@ -76,6 +76,20 @@ final class LiveRemoteViewModel: ObservableObject {
         return sceneBPMs[song.id]
     }
 
+    func bpmLabel(for song: Song?) -> String? {
+        guard let bpm = bpm(for: song) else { return nil }
+
+        if abs(bpm.rounded() - bpm) < 0.01 {
+            return String(format: "%.0f BPM", bpm)
+        }
+
+        return String(format: "%.1f BPM", bpm)
+    }
+
+    var currentBPMLabel: String? {
+        bpmLabel(for: currentSong)
+    }
+
     func startRemoteConnection() {
         bridgeClient.start()
     }
