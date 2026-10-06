@@ -22,17 +22,17 @@ jobs:
 
       - name: Package Max component
         run: |
-          mkdir -p dist/ZLiveRemote-Max-v0.4.2
-          cp ableton/zlr_scene_reader.js dist/ZLiveRemote-Max-v0.4.2/
-          cp ableton/zlr_transport.js dist/ZLiveRemote-Max-v0.4.2/
-          cp ableton/README.md dist/ZLiveRemote-Max-v0.4.2/
-          cp ableton/VERSION.txt dist/ZLiveRemote-Max-v0.4.2/
+          mkdir -p dist/ZLiveRemote-Max-v0.4.3
+          cp ableton/zlr_scene_reader.js dist/ZLiveRemote-Max-v0.4.3/
+          cp ableton/zlr_transport.js dist/ZLiveRemote-Max-v0.4.3/
+          cp ableton/README.md dist/ZLiveRemote-Max-v0.4.3/
+          cp ableton/VERSION.txt dist/ZLiveRemote-Max-v0.4.3/
           cd dist
-          zip -qr ZLiveRemote-Max-v0.4.2.zip ZLiveRemote-Max-v0.4.2
+          zip -qr ZLiveRemote-Max-v0.4.3.zip ZLiveRemote-Max-v0.4.3
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: ZLiveRemote-Max-v0.4.2
-          path: dist/ZLiveRemote-Max-v0.4.2.zip
+          name: ZLiveRemote-Max-v0.4.3
+          path: dist/ZLiveRemote-Max-v0.4.3.zip
           if-no-files-found: error
