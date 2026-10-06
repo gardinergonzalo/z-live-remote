@@ -1,5 +1,5 @@
 Z Live Remote Max Component
-Version: 0.4.3 Live Safety + BPM
+Version: 0.5.0 Show Info + Auto Setlist Sync
 Protocol: 2
 Files:
 - zlr_scene_reader.js
