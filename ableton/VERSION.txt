@@ -1,5 +1,5 @@
 Z Live Remote Max Component
-Version: 0.5.0 Show Info + Auto Setlist Sync
+Version: 0.5.1 FIN Marker
 Protocol: 2
 Files:
 - zlr_scene_reader.js
