@@ -19,8 +19,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zliveremote.app
         PRODUCT_NAME: Z Live Remote
-        MARKETING_VERSION: 0.4.2
-        CURRENT_PROJECT_VERSION: 6
+        MARKETING_VERSION: 0.4.3
+        CURRENT_PROJECT_VERSION: 7
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Z Live Remote
         INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: Z Live Remote usa Bluetooth para conectarse de forma directa con la Mac que ejecuta Ableton Live.
