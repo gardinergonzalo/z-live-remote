@@ -27,6 +27,10 @@ struct ShowView: View {
                         VStack(spacing: 10) {
                             appHeader
 
+                            if !viewModel.isConnected {
+                                connectionAlertBanner
+                            }
+
                             if let song = viewModel.currentSong {
                                 if usesTwoColumnLayout(geometry.size) {
                                     HStack(alignment: .top, spacing: 10) {
@@ -80,6 +84,10 @@ struct ShowView: View {
     private func tabletStageLayout(song: Song, size: CGSize) -> some View {
         VStack(spacing: 10) {
             appHeader
+
+            if !viewModel.isConnected {
+                connectionAlertBanner
+            }
 
             HStack(alignment: .top, spacing: 10) {
                 ScrollView {
@@ -170,13 +178,6 @@ struct ShowView: View {
 
                 Spacer()
 
-                if let bpm = viewModel.currentBPMLabel {
-                    Text(bpm)
-                        .font(.system(size: 11, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(palette.muted)
-                }
-
                 Text(viewModel.currentDisplayNumber)
                     .font(.system(size: 12, weight: .medium))
                     .monospacedDigit()
@@ -191,14 +192,20 @@ struct ShowView: View {
                 .allowsTightening(true)
                 .padding(.top, compactLandscape ? 10 : 18)
 
-            Text(
-                viewModel.playbackState == .playing
-                    ? "La canción está sonando"
-                    : "Lista para disparar"
-            )
-            .font(.system(size: compactLandscape ? 11 : 13, weight: .regular))
-            .foregroundStyle(palette.muted)
-            .padding(.top, compactLandscape ? 4 : 7)
+            Text(viewModel.currentBPMLabel ?? "— BPM")
+                .font(
+                    .system(
+                        size: compactLandscape ? 15 : 18,
+                        weight: .bold
+                    )
+                )
+                .monospacedDigit()
+                .foregroundStyle(
+                    viewModel.currentBPMLabel == nil
+                        ? palette.muted
+                        : palette.accent
+                )
+                .padding(.top, compactLandscape ? 5 : 8)
 
             if !song.sounds.isEmpty {
                 Rectangle()
@@ -623,6 +630,55 @@ struct ShowView: View {
         .clipShape(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         )
+    }
+
+    @ViewBuilder
+    private var connectionAlertBanner: some View {
+        let title: String
+        let message: String
+
+        if !viewModel.bridgeLinkReady {
+            title = "BRIDGE DESCONECTADO"
+            message = "Buscando conexión con la Mac."
+        } else if !viewModel.dataStreamHealthy {
+            title = "SIN DATOS"
+            message = "No se reciben datos del Bridge. Controles bloqueados."
+        } else if !viewModel.maxTransportReady {
+            title = "ABLETON SIN RESPUESTA"
+            message = "Revisá Max for Live y el dispositivo Z Live Remote."
+        } else {
+            title = "CONEXIÓN NO DISPONIBLE"
+            message = "Los controles permanecen bloqueados por seguridad."
+        }
+
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 15, weight: .bold))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .black))
+                    .tracking(0.7)
+
+                Text(message)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(palette.text.opacity(0.82))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(palette.danger)
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(.white.opacity(0.18), lineWidth: 1)
+        }
+        .clipShape(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
     }
 
     private var disconnectedPanel: some View {
