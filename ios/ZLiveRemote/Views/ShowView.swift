@@ -632,35 +632,47 @@ struct ShowView: View {
         )
     }
 
-    @ViewBuilder
-    private var connectionAlertBanner: some View {
-        let title: String
-        let message: String
-
+    private var connectionAlertCopy: (title: String, message: String) {
         if !viewModel.bridgeLinkReady {
-            title = "BRIDGE DESCONECTADO"
-            message = "Buscando conexión con la Mac."
-        } else if !viewModel.dataStreamHealthy {
-            title = "SIN DATOS"
-            message = "No se reciben datos del Bridge. Controles bloqueados."
-        } else if !viewModel.maxTransportReady {
-            title = "ABLETON SIN RESPUESTA"
-            message = "Revisá Max for Live y el dispositivo Z Live Remote."
-        } else {
-            title = "CONEXIÓN NO DISPONIBLE"
-            message = "Los controles permanecen bloqueados por seguridad."
+            return (
+                "BRIDGE DESCONECTADO",
+                "Buscando conexión con la Mac."
+            )
         }
 
-        HStack(spacing: 10) {
+        if !viewModel.dataStreamHealthy {
+            return (
+                "SIN DATOS",
+                "No se reciben datos del Bridge. Controles bloqueados."
+            )
+        }
+
+        if !viewModel.maxTransportReady {
+            return (
+                "ABLETON SIN RESPUESTA",
+                "Revisá Max for Live y el dispositivo Z Live Remote."
+            )
+        }
+
+        return (
+            "CONEXIÓN NO DISPONIBLE",
+            "Los controles permanecen bloqueados por seguridad."
+        )
+    }
+
+    private var connectionAlertBanner: some View {
+        let alert = connectionAlertCopy
+
+        return HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 15, weight: .bold))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(alert.title)
                     .font(.system(size: 11, weight: .black))
                     .tracking(0.7)
 
-                Text(message)
+                Text(alert.message)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(palette.text.opacity(0.82))
             }
