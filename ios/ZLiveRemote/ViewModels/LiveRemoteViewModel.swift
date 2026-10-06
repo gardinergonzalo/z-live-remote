@@ -280,6 +280,35 @@ final class LiveRemoteViewModel: ObservableObject {
         }
     }
 
+    private func normalizeScenePayload(
+        rawName: String,
+        explicitBPM: Double?
+    ) -> (name: String, bpm: Double?) {
+        if let explicitBPM, explicitBPM > 0 {
+            return (rawName, explicitBPM)
+        }
+
+        // Compatibility fallback for a v0.4.3 Max transport mismatch:
+        // an older zlr_transport.js can prepend the new BPM argument to
+        // the Scene name instead of exposing it as the dedicated bpm field.
+        let parts = rawName.split(
+            maxSplits: 1,
+            omittingEmptySubsequences: true,
+            whereSeparator: { $0.isWhitespace }
+        )
+
+        guard
+            parts.count == 2,
+            let bpm = Double(parts[0]),
+            bpm >= 20,
+            bpm <= 300
+        else {
+            return (rawName, nil)
+        }
+
+        return (String(parts[1]), bpm)
+    }
+
     private func finishSceneScan() {
         let parsed = stagedScenes
             .sorted { $0.key < $1.key }
@@ -442,13 +471,24 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 guard
                     event.valid == 1,
                     let sceneIndex = event.index,
-                    let rawName = event.name,
-                    let song = Song.parseSceneName(rawName, sceneIndex: sceneIndex)
+                    let rawName = event.name
+                else { return }
+
+                let normalized = self.normalizeScenePayload(
+                    rawName: rawName,
+                    explicitBPM: event.bpm
+                )
+
+                guard
+                    let song = Song.parseSceneName(
+                        normalized.name,
+                        sceneIndex: sceneIndex
+                    )
                 else { return }
 
                 self.stagedScenes[sceneIndex] = song
 
-                if let bpm = event.bpm, bpm > 0 {
+                if let bpm = normalized.bpm, bpm > 0 {
                     self.sceneBPMs[sceneIndex] = bpm
                 }
 
