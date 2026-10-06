@@ -36,5 +36,6 @@ struct BridgeEvent: Decodable {
     let elapsed: Double?
     let duration: Double?
     let progress: Double?
+    let bpm: Double?
     let maxConnected: Bool?
 }
