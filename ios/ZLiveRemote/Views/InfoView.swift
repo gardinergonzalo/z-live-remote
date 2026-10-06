@@ -119,6 +119,9 @@ struct InfoView: View {
                     )
                     .cornerRadius(2)
                 }
+                .chartXScale(
+                    domain: 0...(energyPoints.count + 1)
+                )
                 .chartYScale(domain: bpmDomain)
                 .chartXAxis(.hidden)
                 .chartYAxis {
