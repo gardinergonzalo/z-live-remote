@@ -15,11 +15,22 @@ var monitorTimelineUsesSeconds = false;
 var monitorTempo = 120;
 var sceneDurationCache = {};
 
+var scanTask = null;
+var scanSceneCount = 0;
+var scanSceneIndex = 0;
+
+var sceneListObserver = null;
+var sceneObserverPrimed = false;
+var sceneRescanTask = null;
+var pendingSceneRescan = false;
+
 var MONITOR_INTERVAL_MS = 500;
+var SCAN_STEP_MS = 20;
+var SCENE_RESCAN_DEBOUNCE_MS = 300;
 var STOPPED_DEBOUNCE_TICKS = 2;
 
 /*
- Z Live Remote v0.4.3 - Scene Reader local timeline + BPM sync
+ Z Live Remote v0.5.0 - Scene Reader show info + setlist observer
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
@@ -34,37 +45,129 @@ function bang() {
 
 function scan() {
     try {
+        cancelScanTask();
+
         var setApi = new LiveAPI("live_set");
-        var sceneCount = parseInt(setApi.getcount("scenes"), 10);
+        scanSceneCount = parseInt(setApi.getcount("scenes"), 10);
+        scanSceneIndex = 0;
 
-        outlet(0, ["scan_begin", sceneCount]);
+        // Scene indexes can change after drag/reorder, so invalidate
+        // index-based duration cache and rebuild it once, progressively.
+        sceneDurationCache = {};
 
-        for (var i = 0; i < sceneCount; i++) {
-            var sceneApi = new LiveAPI("live_set scenes " + i);
-            var sceneName = cleanValue(sceneApi.get("name"));
-            var sceneId = sceneApi.id;
-            var hasClips = sceneHasAnyClip(i);
-            var valid = isValidScene(sceneName, hasClips);
-
-            var sceneBPM = valid ? sceneTempoBPM(i) : 0;
-
-            outlet(1, [
-                "scene",
-                i,
-                valid ? 1 : 0,
-                hasClips ? 1 : 0,
-                sceneId,
-                sceneBPM,
-                sceneName
-            ]);
-        }
-
-        reportSelected();
-        outlet(0, ["scan_end"]);
+        outlet(0, ["scan_begin", scanSceneCount]);
+        scanNextScene();
     } catch (e) {
         outlet(0, ["error", String(e)]);
         post("Z Live Remote Scene Reader error: " + e + "\n");
     }
+}
+
+function scanNextScene() {
+    try {
+        if (scanSceneIndex >= scanSceneCount) {
+            scanTask = null;
+            reportSelected();
+            outlet(0, ["scan_end"]);
+            ensureSceneListObserver();
+            return;
+        }
+
+        var i = scanSceneIndex;
+        scanSceneIndex += 1;
+
+        var sceneApi = new LiveAPI("live_set scenes " + i);
+        var sceneName = cleanValue(sceneApi.get("name"));
+        var sceneId = sceneApi.id;
+        var hasClips = sceneHasAnyClip(i);
+        var valid = isValidScene(sceneName, hasClips);
+        var sceneBPM = valid ? sceneTempoBPM(i) : 0;
+
+        outlet(1, [
+            "scene",
+            i,
+            valid ? 1 : 0,
+            hasClips ? 1 : 0,
+            sceneId,
+            sceneBPM,
+            sceneName
+        ]);
+
+        if (valid) {
+            // Duration is calculated once during the scan and then cached.
+            // This is intentionally not continuous polling.
+            reportSceneDuration(i);
+        }
+
+        scanTask = new Task(scanNextScene, this);
+        scanTask.schedule(SCAN_STEP_MS);
+    } catch (e) {
+        scanTask = null;
+        outlet(0, ["error", String(e)]);
+        post("Z Live Remote scan step error: " + e + "\n");
+    }
+}
+
+function cancelScanTask() {
+    if (scanTask) {
+        try {
+            scanTask.cancel();
+        } catch (ignore) {}
+    }
+    scanTask = null;
+}
+
+function ensureSceneListObserver() {
+    if (sceneListObserver) {
+        return;
+    }
+
+    sceneObserverPrimed = false;
+    sceneListObserver = new LiveAPI(sceneListChanged, "live_set");
+    sceneListObserver.property = "scenes";
+}
+
+function sceneListChanged() {
+    if (!sceneObserverPrimed) {
+        sceneObserverPrimed = true;
+        return;
+    }
+
+    // Never rebuild the setlist in the middle of a song. The change is
+    // remembered and applied immediately after playback stops/finishes.
+    if (playbackMonitor) {
+        pendingSceneRescan = true;
+        outlet(0, ["setlist_change_pending"]);
+        return;
+    }
+
+    scheduleSceneRescan();
+}
+
+function scheduleSceneRescan() {
+    if (sceneRescanTask) {
+        try {
+            sceneRescanTask.cancel();
+        } catch (ignore) {}
+    }
+
+    sceneRescanTask = new Task(runSceneRescan, this);
+    sceneRescanTask.schedule(SCENE_RESCAN_DEBOUNCE_MS);
+}
+
+function runSceneRescan() {
+    sceneRescanTask = null;
+    pendingSceneRescan = false;
+    scan();
+}
+
+function runPendingSceneRescanIfNeeded() {
+    if (!pendingSceneRescan) {
+        return;
+    }
+
+    pendingSceneRescan = false;
+    scheduleSceneRescan();
 }
 
 function selected() {
@@ -269,6 +372,7 @@ function pollMonitoredScene() {
 
         if (nextIndex < 0) {
             outlet(0, ["scene_finished", finishedIndex, "end_of_setlist"]);
+            runPendingSceneRescanIfNeeded();
             return;
         }
 
@@ -280,6 +384,7 @@ function pollMonitoredScene() {
         outlet(0, ["prepared_next", nextIndex, nextApi.id, nextName]);
         reportSceneTempo(nextIndex);
         reportSceneDuration(nextIndex);
+        runPendingSceneRescanIfNeeded();
     } catch (e) {
         outlet(0, ["monitor_error", String(e)]);
         post("Z Live Remote monitor error: " + e + "\n");
@@ -498,6 +603,7 @@ function stop() {
         setApi.call("stop_all_clips");
         outlet(0, ["stop_all_clips"]);
         outlet(0, ["timeline_reset"]);
+        runPendingSceneRescanIfNeeded();
     } catch (e) {
         outlet(0, ["stop_error", String(e)]);
         post("Z Live Remote stop error: " + e + "\n");
