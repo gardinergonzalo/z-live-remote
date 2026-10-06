@@ -17,6 +17,11 @@ struct ContentView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $viewModel.isInfoPresented) {
+                InfoView(viewModel: viewModel)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
     }
 }
 
