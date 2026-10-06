@@ -30,7 +30,7 @@ var SCENE_RESCAN_DEBOUNCE_MS = 300;
 var STOPPED_DEBOUNCE_TICKS = 2;
 
 /*
- Z Live Remote v0.5.0 - Scene Reader show info + setlist observer
+ Z Live Remote v0.5.1 - Scene Reader FIN marker
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
@@ -78,6 +78,19 @@ function scanNextScene() {
 
         var sceneApi = new LiveAPI("live_set scenes " + i);
         var sceneName = cleanValue(sceneApi.get("name"));
+
+        // A Scene named exactly FIN is a show boundary. It is not sent to
+        // the app, and all Scenes after it remain available in Live but are
+        // ignored by Z Live Remote for this show.
+        if (isEndMarker(sceneName)) {
+            cancelScanTask();
+            scanSceneIndex = scanSceneCount;
+            reportSelected();
+            outlet(0, ["scan_end"]);
+            ensureSceneListObserver();
+            return;
+        }
+
         var sceneId = sceneApi.id;
         var hasClips = sceneHasAnyClip(i);
         var valid = isValidScene(sceneName, hasClips);
@@ -243,6 +256,12 @@ function select(index) {
 
         var sceneApi = new LiveAPI("live_set scenes " + i);
         var sceneName = cleanValue(sceneApi.get("name"));
+
+        if (isEndMarker(sceneName)) {
+            outlet(0, ["select_error", "end_marker", i, sceneName]);
+            return;
+        }
+
         var hasClips = sceneHasAnyClip(i);
 
         if (!isValidScene(sceneName, hasClips)) {
@@ -549,6 +568,11 @@ function findNextValidSceneIndex(startIndex) {
     for (var i = startIndex; i < sceneCount; i++) {
         var sceneApi = new LiveAPI("live_set scenes " + i);
         var sceneName = cleanValue(sceneApi.get("name"));
+
+        if (isEndMarker(sceneName)) {
+            return -1;
+        }
+
         var hasClips = sceneHasAnyClip(i);
 
         if (isValidScene(sceneName, hasClips)) {
@@ -828,6 +852,14 @@ function clipElapsedSeconds(clipApi, tempo) {
     }
 
     return units * 60.0 / tempo;
+}
+
+function isEndMarker(name) {
+    var normalized = String(name || "")
+        .replace(/^\s+|\s+$/g, "")
+        .toUpperCase();
+
+    return normalized === "FIN";
 }
 
 function isValidScene(name, hasClips) {
