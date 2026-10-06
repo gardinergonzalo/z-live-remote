@@ -10,12 +10,16 @@ final class LiveRemoteViewModel: ObservableObject {
     @Published private(set) var timelineElapsed: Double = 0
     @Published private(set) var timelineDuration: Double = 0
     @Published private(set) var timelineProgress: Double = 0
+    @Published private(set) var sceneBPMs: [Int: Double] = [:]
 
     @Published var isSetlistPresented = false
 
     private var stagedScenes: [Int: Song] = [:]
     private var pendingSelectedSceneIndex: Int?
     private var sceneDurations: [Int: Double] = [:]
+    private var localTimelineTimer: Timer?
+    private var timelineAnchorDate: Date?
+    private var timelineAnchorElapsed: Double = 0
 
     private var bridgeLinkReady = false
     private var maxTransportReady = false
@@ -60,6 +64,16 @@ final class LiveRemoteViewModel: ObservableObject {
 
     var hasTimeline: Bool {
         timelineDuration > 0
+    }
+
+    var currentBPM: Double? {
+        guard let sceneIndex = currentSong?.id else { return nil }
+        return sceneBPMs[sceneIndex]
+    }
+
+    func bpm(for song: Song?) -> Double? {
+        guard let song else { return nil }
+        return sceneBPMs[song.id]
     }
 
     func startRemoteConnection() {
@@ -121,6 +135,7 @@ final class LiveRemoteViewModel: ObservableObject {
             }
         } else {
             playbackState = .disconnected
+            stopLocalTimeline()
             resetTimelineProgress()
         }
     }
@@ -181,7 +196,13 @@ final class LiveRemoteViewModel: ObservableObject {
         }
 
         pendingSelectedSceneIndex = nil
-        syncTimelineForCurrentScene()
+
+        if playbackState == .playing {
+            timelineDuration = sceneDurations[sceneIndex] ?? timelineDuration
+        } else {
+            stopLocalTimeline()
+            syncTimelineForCurrentScene()
+        }
     }
 
     private func finishSceneScan() {
@@ -219,6 +240,58 @@ final class LiveRemoteViewModel: ObservableObject {
     private func resetTimelineProgress() {
         timelineElapsed = 0
         timelineProgress = 0
+        timelineAnchorElapsed = 0
+        timelineAnchorDate = nil
+    }
+
+    private func startLocalTimeline(initialElapsed: Double? = nil) {
+        stopLocalTimeline()
+
+        guard timelineDuration > 0 else { return }
+
+        let elapsed = min(
+            max(0, initialElapsed ?? timelineElapsed),
+            timelineDuration
+        )
+
+        timelineElapsed = elapsed
+        timelineProgress = timelineDuration > 0
+            ? elapsed / timelineDuration
+            : 0
+
+        timelineAnchorElapsed = elapsed
+        timelineAnchorDate = Date()
+
+        localTimelineTimer = Timer.scheduledTimer(
+            withTimeInterval: 0.10,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard
+                    let self,
+                    self.playbackState == .playing,
+                    let anchor = self.timelineAnchorDate,
+                    self.timelineDuration > 0
+                else { return }
+
+                let elapsed = min(
+                    self.timelineDuration,
+                    self.timelineAnchorElapsed + Date().timeIntervalSince(anchor)
+                )
+
+                self.timelineElapsed = elapsed
+                self.timelineProgress = min(
+                    max(elapsed / self.timelineDuration, 0),
+                    1
+                )
+            }
+        }
+    }
+
+    private func stopLocalTimeline() {
+        localTimelineTimer?.invalidate()
+        localTimelineTimer = nil
+        timelineAnchorDate = nil
     }
 
     private func updateTimeline(
@@ -234,6 +307,10 @@ final class LiveRemoteViewModel: ObservableObject {
         timelineDuration = max(0, duration)
         timelineElapsed = min(max(0, elapsed), timelineDuration)
         timelineProgress = min(max(0, progress), 1)
+
+        if playbackState == .playing {
+            startLocalTimeline(initialElapsed: timelineElapsed)
+        }
     }
 }
 
@@ -297,6 +374,15 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 guard let sceneIndex = event.index else { return }
                 self.selectSceneIndexFromAbleton(sceneIndex)
 
+            case "scene_bpm":
+                guard
+                    let sceneIndex = event.index,
+                    let bpm = event.bpm,
+                    bpm > 0
+                else { return }
+
+                self.sceneBPMs[sceneIndex] = bpm
+
             case "scene_duration":
                 guard
                     let sceneIndex = event.index,
@@ -307,8 +393,11 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
 
                 if self.currentSong?.id == sceneIndex {
                     self.timelineDuration = max(0, duration)
-                    self.timelineElapsed = 0
-                    self.timelineProgress = 0
+
+                    if self.playbackState != .playing {
+                        self.timelineElapsed = 0
+                        self.timelineProgress = 0
+                    }
                 }
 
             case "fired_watching":
@@ -319,6 +408,7 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                     self.selectSceneIndexFromAbleton(sceneIndex)
                 }
                 self.playbackState = .playing
+                self.startLocalTimeline(initialElapsed: self.timelineElapsed)
 
             case "timeline":
                 guard
@@ -336,6 +426,7 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 )
 
             case "timeline_reset":
+                self.stopLocalTimeline()
                 self.resetTimelineProgress()
 
             case "scene_finished":
@@ -343,10 +434,12 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
 
             case "prepared_next":
                 guard let sceneIndex = event.index else { return }
-                self.selectSceneIndexFromAbleton(sceneIndex)
+                self.stopLocalTimeline()
                 self.playbackState = .ready
+                self.selectSceneIndexFromAbleton(sceneIndex)
 
             case "stop_all_clips":
+                self.stopLocalTimeline()
                 self.playbackState = .ready
                 self.resetTimelineProgress()
 
