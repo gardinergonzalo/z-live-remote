@@ -43,7 +43,7 @@ struct ShowView: View {
                                         VStack(spacing: 10) {
                                             nextSongPanel
                                             navigationControls
-                                            setlistButton
+                                            showInfoButtons
                                         }
                                         .frame(
                                             width: min(
@@ -59,7 +59,7 @@ struct ShowView: View {
                                     )
                                     nextSongPanel
                                     navigationControls
-                                    setlistButton
+                                    showInfoButtons
                                 }
                             } else {
                                 disconnectedPanel
@@ -103,6 +103,7 @@ struct ShowView: View {
                 VStack(spacing: 10) {
                     nextSongPanel
                     navigationControls
+                    infoButton
 
                     persistentSetlist
                         .frame(maxHeight: .infinity)
@@ -495,6 +496,33 @@ struct ShowView: View {
                 ? 1
                 : 0.5
         )
+    }
+
+    private var showInfoButtons: some View {
+        HStack(spacing: 8) {
+            setlistButton
+            infoButton
+        }
+    }
+
+    private var infoButton: some View {
+        Button {
+            viewModel.isInfoPresented = true
+        } label: {
+            Label("INFO", systemImage: "chart.bar.xaxis")
+                .font(.system(size: 12, weight: .bold))
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(panelBackground)
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(palette.line, lineWidth: 1)
+                }
+                .clipShape(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private var setlistButton: some View {
