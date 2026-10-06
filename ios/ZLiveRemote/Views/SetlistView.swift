@@ -91,6 +91,13 @@ struct SetlistView: View {
 
             Spacer()
 
+            if let bpm = viewModel.bpmLabel(for: song) {
+                Text(bpm)
+                    .font(.system(size: 9, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(palette.muted)
+            }
+
             if viewModel.currentSong == song {
                 Text(viewModel.playbackState == .playing ? "SONANDO" : "PREPARADA")
                     .font(.system(size: 9, weight: .bold))
