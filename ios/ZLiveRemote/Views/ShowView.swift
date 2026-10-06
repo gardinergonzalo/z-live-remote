@@ -162,13 +162,20 @@ struct ShowView: View {
         compactLandscape: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
+            HStack(spacing: 12) {
                 Text(viewModel.playbackState.rawValue)
                     .font(.system(size: 12, weight: .black))
                     .tracking(1.5)
                     .foregroundStyle(stateColor)
 
                 Spacer()
+
+                if let bpm = viewModel.currentBPMLabel {
+                    Text(bpm)
+                        .font(.system(size: 11, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(palette.muted)
+                }
 
                 Text(viewModel.currentDisplayNumber)
                     .font(.system(size: 12, weight: .medium))
@@ -420,10 +427,19 @@ struct ShowView: View {
     private var nextSongPanel: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("SIGUIENTE")
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(1.2)
-                    .foregroundStyle(palette.muted)
+                HStack(spacing: 8) {
+                    Text("SIGUIENTE")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(palette.muted)
+
+                    if let bpm = viewModel.bpmLabel(for: viewModel.nextSong) {
+                        Text(bpm)
+                            .font(.system(size: 9, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(palette.muted)
+                    }
+                }
 
                 Text(viewModel.nextSong?.name ?? "FIN DE SETLIST")
                     .font(.system(size: 16, weight: .bold))
@@ -547,6 +563,13 @@ struct ShowView: View {
                                     }
 
                                     Spacer(minLength: 4)
+
+                                    if let bpm = viewModel.bpmLabel(for: song) {
+                                        Text(bpm)
+                                            .font(.system(size: 8, weight: .semibold))
+                                            .monospacedDigit()
+                                            .foregroundStyle(palette.muted)
+                                    }
 
                                     if viewModel.currentSong == song {
                                         Text(
