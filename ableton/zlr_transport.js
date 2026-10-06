@@ -1,4 +1,4 @@
-// Z Live Remote v0.4.2 - Node for Max transport
+// Z Live Remote v0.4.3 - Node for Max transport
 const maxApi = require("max-api");
 const dgram = require("dgram");
 
@@ -33,13 +33,14 @@ maxApi.addHandler("scan_end", () => {
     send({ type: "scan_end" });
 });
 
-maxApi.addHandler("scene", (index, valid, hasClips, liveId, ...nameParts) => {
+maxApi.addHandler("scene", (index, valid, hasClips, liveId, bpm, ...nameParts) => {
     send({
         type: "scene",
         index: Number(index),
         valid: Number(valid),
         hasClips: Number(hasClips),
         liveId: Number(liveId),
+        bpm: Number(bpm),
         name: nameParts.join(" ")
     });
 });
