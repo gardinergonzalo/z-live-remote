@@ -6,6 +6,9 @@ final class LiveRemoteViewModel: ObservableObject {
     @Published private(set) var currentIndex: Int
     @Published private(set) var playbackState: PlaybackState
     @Published private(set) var isConnected: Bool
+    @Published private(set) var bridgeLinkReady = false
+    @Published private(set) var maxTransportReady = false
+    @Published private(set) var dataStreamHealthy = false
 
     @Published private(set) var timelineElapsed: Double = 0
     @Published private(set) var timelineDuration: Double = 0
@@ -20,9 +23,9 @@ final class LiveRemoteViewModel: ObservableObject {
     private var localTimelineTimer: Timer?
     private var timelineAnchorDate: Date?
     private var timelineAnchorElapsed: Double = 0
+    private var dataWatchdogTimer: Timer?
+    private var lastBridgeEventAt: Date?
 
-    private var bridgeLinkReady = false
-    private var maxTransportReady = false
     private var didRequestScanForCurrentMaxSession = false
 
     private lazy var bridgeClient: BLEBridgeClient = {
@@ -91,6 +94,7 @@ final class LiveRemoteViewModel: ObservableObject {
     }
 
     func startRemoteConnection() {
+        startDataWatchdog()
         bridgeClient.start()
     }
 
@@ -173,7 +177,57 @@ final class LiveRemoteViewModel: ObservableObject {
     }
 
     private func refreshEndToEndConnection() {
-        setConnected(bridgeLinkReady && maxTransportReady)
+        setConnected(
+            bridgeLinkReady &&
+            maxTransportReady &&
+            dataStreamHealthy
+        )
+    }
+
+    private func noteBridgeEventReceived() {
+        lastBridgeEventAt = Date()
+
+        if !dataStreamHealthy {
+            dataStreamHealthy = true
+        }
+
+        refreshEndToEndConnection()
+    }
+
+    private func setDataStreamHealthy(_ healthy: Bool) {
+        guard dataStreamHealthy != healthy else { return }
+        dataStreamHealthy = healthy
+        refreshEndToEndConnection()
+    }
+
+    private func startDataWatchdog() {
+        dataWatchdogTimer?.invalidate()
+
+        dataWatchdogTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+
+                guard self.bridgeLinkReady else {
+                    self.setDataStreamHealthy(false)
+                    return
+                }
+
+                guard let lastBridgeEventAt = self.lastBridgeEventAt else {
+                    self.setDataStreamHealthy(false)
+                    return
+                }
+
+                // Bridge/Max heartbeat arrives every ~2 s.
+                // Three missed heartbeats is treated as unsafe for live control.
+                let healthy =
+                    Date().timeIntervalSince(lastBridgeEventAt) <= 6.0
+
+                self.setDataStreamHealthy(healthy)
+            }
+        }
     }
 
     private func markMaxAvailable(
@@ -340,6 +394,8 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
         Task { @MainActor in
             self.bridgeLinkReady = true
             self.maxTransportReady = false
+            self.dataStreamHealthy = false
+            self.lastBridgeEventAt = nil
             self.didRequestScanForCurrentMaxSession = false
             self.refreshEndToEndConnection()
             client.send(.ping)
@@ -350,6 +406,8 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
         Task { @MainActor in
             self.bridgeLinkReady = false
             self.maxTransportReady = false
+            self.dataStreamHealthy = false
+            self.lastBridgeEventAt = nil
             self.didRequestScanForCurrentMaxSession = false
             self.refreshEndToEndConnection()
         }
@@ -360,6 +418,8 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
         didReceive event: BridgeEvent
     ) {
         Task { @MainActor in
+            self.noteBridgeEventReceived()
+
             switch event.type {
             case "hello":
                 self.bridgeLinkReady = true
@@ -387,6 +447,10 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 else { return }
 
                 self.stagedScenes[sceneIndex] = song
+
+                if let bpm = event.bpm, bpm > 0 {
+                    self.sceneBPMs[sceneIndex] = bpm
+                }
 
             case "scan_end":
                 self.finishSceneScan()
