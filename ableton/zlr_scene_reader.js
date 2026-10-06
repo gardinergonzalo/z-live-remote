@@ -30,7 +30,7 @@ var SCENE_RESCAN_DEBOUNCE_MS = 300;
 var STOPPED_DEBOUNCE_TICKS = 2;
 
 /*
- Z Live Remote v0.5.1 - Scene Reader FIN marker
+ Z Live Remote v0.5.3 - FIN marker + reconnect recovery
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
@@ -67,8 +67,8 @@ function scanNextScene() {
     try {
         if (scanSceneIndex >= scanSceneCount) {
             scanTask = null;
-            reportSelected();
             outlet(0, ["scan_end"]);
+            reportSelected();
             ensureSceneListObserver();
             return;
         }
@@ -85,8 +85,8 @@ function scanNextScene() {
         if (isEndMarker(sceneName)) {
             cancelScanTask();
             scanSceneIndex = scanSceneCount;
-            reportSelected();
             outlet(0, ["scan_end"]);
+            reportSelected();
             ensureSceneListObserver();
             return;
         }
@@ -225,6 +225,8 @@ function resumeWatchIfPlaying(index) {
     }
 
     if (playbackMonitor && monitoredSceneIndex === index) {
+        outlet(0, ["scene_started", index]);
+        reportCachedTimeline(index);
         return;
     }
 
