@@ -1,5 +1,5 @@
 Z Live Remote Max Component
-Version: 0.5.3 Reconnect Recovery + FIN
+Version: 0.5.4 Fast STOP + End Sync
 Protocol: 2
 Files:
 - zlr_scene_reader.js
