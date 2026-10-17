@@ -27,10 +27,10 @@ var pendingSceneRescan = false;
 var MONITOR_INTERVAL_MS = 500;
 var SCAN_STEP_MS = 20;
 var SCENE_RESCAN_DEBOUNCE_MS = 300;
-var STOPPED_DEBOUNCE_TICKS = 2;
+var STOPPED_DEBOUNCE_TICKS = 1;
 
 /*
- Z Live Remote v0.5.3 - FIN marker + reconnect recovery
+ Z Live Remote v0.5.4 - Immediate end detection
  Outlet 0: human-readable/status messages
  Outlet 1: machine-friendly scene rows
 
