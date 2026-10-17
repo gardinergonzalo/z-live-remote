@@ -631,7 +631,12 @@ extension LiveRemoteViewModel: BLEBridgeClientDelegate {
                 self.resetTimelineProgress()
 
             case "scene_finished":
-                break
+                self.stopLocalTimeline()
+
+                if self.timelineDuration > 0 {
+                    self.timelineElapsed = self.timelineDuration
+                    self.timelineProgress = 1
+                }
 
             case "setlist_change_pending":
                 self.setlistRefreshPending = true
