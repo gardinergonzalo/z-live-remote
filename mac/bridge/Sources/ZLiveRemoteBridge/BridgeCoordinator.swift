@@ -12,7 +12,7 @@ final class BridgeCoordinator {
     private var isMaxConnected = false
 
     func start() {
-        onBLEStatus?("Esperando iPhone/iPad")
+        onBLEStatus?("Esperando móvil")
         onMaxStatus?("Esperando Max for Live")
 
         ble.onLog = { print("[BLE] \($0)") }
@@ -22,7 +22,7 @@ final class BridgeCoordinator {
             guard let self else { return }
 
             self.onBLEStatus?(
-                connected ? "Conectado" : "Esperando iPhone/iPad"
+                connected ? "Conectado" : "Esperando móvil"
             )
 
             if connected {
@@ -31,14 +31,14 @@ final class BridgeCoordinator {
         }
 
         ble.onCommandLine = { [weak self] line in
-            print("[iOS → Max] \(line)")
+            print("[Mobile → Max] \(line)")
             self?.maxTransport.sendCommandLine(line)
         }
 
         maxTransport.onEventLine = { [weak self] line in
             guard let self else { return }
 
-            print("[Max → iOS] \(line)")
+            print("[Max → Mobile] \(line)")
             self.lastMaxReply = Date()
             self.setMaxConnected(true)
             self.ble.sendJSONLine(line)
@@ -48,7 +48,7 @@ final class BridgeCoordinator {
         ble.start()
         startHeartbeat()
 
-        print("Z Live Remote Bridge v0.4.0 started.")
+        print("Z Live Remote Bridge v0.6.0 multi-device started.")
         print("macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         print("Waiting for Bluetooth and Max for Live...")
     }
