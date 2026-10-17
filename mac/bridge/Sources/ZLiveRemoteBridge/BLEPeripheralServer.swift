@@ -9,10 +9,13 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
     private var manager: CBPeripheralManager!
     private var commandCharacteristic: CBMutableCharacteristic?
     private var eventCharacteristic: CBMutableCharacteristic?
-    private var subscribedCentral: CBCentral?
 
-    private var incomingBuffer = Data()
-    private var outgoingChunks: [Data] = []
+    // Multiple phones/tablets may subscribe at the same time. Each central
+    // gets its own command buffer and notification queue so packets from
+    // iOS and Android can never be mixed together.
+    private var subscribedCentrals: [UUID: CBCentral] = [:]
+    private var incomingBuffers: [UUID: Data] = [:]
+    private var outgoingChunks: [UUID: [Data]] = [:]
 
     override init() {
         super.init()
@@ -25,7 +28,10 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
 
     func sendJSONLine(_ line: String) {
         guard let data = (line + "\n").data(using: .utf8) else { return }
-        enqueueForNotification(data)
+
+        for central in subscribedCentrals.values {
+            enqueueForNotification(data, to: central)
+        }
     }
 
     func sendEncodable<T: Encodable>(_ value: T) {
@@ -38,6 +44,20 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         }
     }
 
+    private func sendEncodable<T: Encodable>(
+        _ value: T,
+        to central: CBCentral
+    ) {
+        do {
+            let data = try JSONEncoder().encode(value)
+            guard let line = String(data: data, encoding: .utf8) else { return }
+            guard let packet = (line + "\n").data(using: .utf8) else { return }
+            enqueueForNotification(packet, to: central)
+        } catch {
+            log("Could not encode BLE event: \(error)")
+        }
+    }
+
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
@@ -45,17 +65,17 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
             onConnectionChanged?(false)
 
         case .poweredOff:
-            clearConnectionState()
+            clearAllConnectionState()
             log("Bluetooth is off.")
             onConnectionChanged?(false)
 
         case .unauthorized:
-            clearConnectionState()
+            clearAllConnectionState()
             log("Bluetooth permission denied.")
             onConnectionChanged?(false)
 
         case .unsupported:
-            clearConnectionState()
+            clearAllConnectionState()
             log("Bluetooth LE is not supported on this Mac.")
             onConnectionChanged?(false)
 
@@ -69,18 +89,22 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         central: CBCentral,
         didSubscribeTo characteristic: CBCharacteristic
     ) {
-        incomingBuffer.removeAll(keepingCapacity: true)
-        outgoingChunks.removeAll(keepingCapacity: true)
+        let id = central.identifier
 
-        subscribedCentral = central
-        onConnectionChanged?(true)
+        subscribedCentrals[id] = central
+        incomingBuffers[id] = Data()
+        outgoingChunks[id] = []
+
+        onConnectionChanged?(!subscribedCentrals.isEmpty)
 
         log(
-            "iPhone/iPad subscribed. max notification = " +
-            "\(central.maximumUpdateValueLength) bytes"
+            "Mobile subscribed (\(subscribedCentrals.count) active). " +
+            "max notification = \(central.maximumUpdateValueLength) bytes"
         )
 
-        sendEncodable(BridgeHello())
+        // Only the newly connected device needs its hello packet. All normal
+        // Max events are broadcast to every subscribed mobile.
+        sendEncodable(BridgeHello(), to: central)
     }
 
     func peripheralManager(
@@ -88,12 +112,15 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         central: CBCentral,
         didUnsubscribeFrom characteristic: CBCharacteristic
     ) {
-        if subscribedCentral?.identifier == central.identifier {
-            clearConnectionState()
-        }
+        let id = central.identifier
+        subscribedCentrals.removeValue(forKey: id)
+        incomingBuffers.removeValue(forKey: id)
+        outgoingChunks.removeValue(forKey: id)
 
-        onConnectionChanged?(false)
-        log("iPhone/iPad disconnected from notifications.")
+        onConnectionChanged?(!subscribedCentrals.isEmpty)
+        log(
+            "Mobile disconnected. \(subscribedCentrals.count) active device(s)."
+        )
     }
 
     func peripheralManager(
@@ -109,14 +136,18 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
                 continue
             }
 
-            incomingBuffer.append(value)
-            drainIncomingLines()
+            let id = request.central.identifier
+            var buffer = incomingBuffers[id] ?? Data()
+            buffer.append(value)
+            incomingBuffers[id] = buffer
+            drainIncomingLines(for: id)
+
             peripheral.respond(to: request, withResult: .success)
         }
     }
 
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
-        flushOutgoing()
+        flushAllOutgoing()
     }
 
     private func configureService() {
@@ -125,7 +156,7 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
 
         commandCharacteristic = nil
         eventCharacteristic = nil
-        clearConnectionState()
+        clearAllConnectionState()
 
         let command = CBMutableCharacteristic(
             type: ZLRProtocol.commandUUID,
@@ -159,52 +190,67 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
         log("Advertising BLE service as \(ZLRProtocol.deviceName).")
     }
 
-    private func clearConnectionState() {
-        subscribedCentral = nil
-        incomingBuffer.removeAll(keepingCapacity: true)
-        outgoingChunks.removeAll(keepingCapacity: true)
+    private func clearAllConnectionState() {
+        subscribedCentrals.removeAll()
+        incomingBuffers.removeAll()
+        outgoingChunks.removeAll()
     }
 
-    private func enqueueForNotification(_ data: Data) {
-        guard let subscribedCentral else {
-            return
-        }
+    private func enqueueForNotification(_ data: Data, to central: CBCentral) {
+        let id = central.identifier
+        guard subscribedCentrals[id] != nil else { return }
 
-        let maximum = max(20, subscribedCentral.maximumUpdateValueLength)
+        let maximum = max(20, central.maximumUpdateValueLength)
+        var queue = outgoingChunks[id] ?? []
         var cursor = 0
 
         while cursor < data.count {
             let end = min(cursor + maximum, data.count)
-            outgoingChunks.append(data.subdata(in: cursor..<end))
+            queue.append(data.subdata(in: cursor..<end))
             cursor = end
         }
 
-        flushOutgoing()
+        outgoingChunks[id] = queue
+        flushOutgoing(to: central)
     }
 
-    private func flushOutgoing() {
-        guard
-            let eventCharacteristic,
-            let subscribedCentral
-        else { return }
-
-        while !outgoingChunks.isEmpty {
-            let next = outgoingChunks[0]
-            let sent = manager.updateValue(
-                next,
-                for: eventCharacteristic,
-                onSubscribedCentrals: [subscribedCentral]
-            )
-
-            guard sent else { return }
-            outgoingChunks.removeFirst()
+    private func flushAllOutgoing() {
+        for central in subscribedCentrals.values {
+            flushOutgoing(to: central)
         }
     }
 
-    private func drainIncomingLines() {
-        while let newline = incomingBuffer.firstIndex(of: 0x0A) {
-            let packet = incomingBuffer.prefix(upTo: newline)
-            incomingBuffer.removeSubrange(...newline)
+    private func flushOutgoing(to central: CBCentral) {
+        guard let eventCharacteristic else { return }
+
+        let id = central.identifier
+        guard var queue = outgoingChunks[id] else { return }
+
+        while !queue.isEmpty {
+            let next = queue[0]
+            let sent = manager.updateValue(
+                next,
+                for: eventCharacteristic,
+                onSubscribedCentrals: [central]
+            )
+
+            guard sent else {
+                outgoingChunks[id] = queue
+                return
+            }
+
+            queue.removeFirst()
+        }
+
+        outgoingChunks[id] = queue
+    }
+
+    private func drainIncomingLines(for centralID: UUID) {
+        guard var buffer = incomingBuffers[centralID] else { return }
+
+        while let newline = buffer.firstIndex(of: 0x0A) {
+            let packet = buffer.prefix(upTo: newline)
+            buffer.removeSubrange(...newline)
 
             guard
                 !packet.isEmpty,
@@ -213,6 +259,8 @@ final class BLEPeripheralServer: NSObject, CBPeripheralManagerDelegate {
 
             onCommandLine?(line)
         }
+
+        incomingBuffers[centralID] = buffer
     }
 
     private func log(_ message: String) {
