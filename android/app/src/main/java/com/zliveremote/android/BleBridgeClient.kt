@@ -269,7 +269,7 @@ class BleBridgeClient(
                     appContext,
                     false,
                     gattCallback,
-                    BluetoothGatt.TRANSPORT_LE
+                    android.bluetooth.BluetoothDevice.TRANSPORT_LE
                 )
             } else {
                 @Suppress("DEPRECATION")
