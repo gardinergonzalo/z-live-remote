@@ -350,24 +350,26 @@ struct ShowView: View {
     }
 
     private func stopControl(minHeight: CGFloat) -> some View {
-        Text("MANTENER STOP")
-            .font(.system(size: 14, weight: .black))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: minHeight)
-            .background(palette.danger)
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(palette.danger, lineWidth: 1)
-            }
-            .clipShape(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-            .contentShape(Rectangle())
-            .onLongPressGesture(minimumDuration: 0.8) {
-                viewModel.stop()
-            }
-            .accessibilityLabel("Mantener para detener la canción")
+        Button {
+            viewModel.stop()
+        } label: {
+            Text("STOP")
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: minHeight)
+                .background(palette.danger)
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(palette.danger, lineWidth: 1)
+                }
+                .clipShape(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Detener canción")
     }
 
     private func portraitReferences(_ sounds: [String]) -> some View {
